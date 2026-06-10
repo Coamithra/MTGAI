@@ -44,6 +44,21 @@ match how many you listed. Leave `irregular_subtypes` empty when the theme has n
 real preference — a seeded RNG then picks for you. `subtype_jitter` randomizes the
 counts a little; leave `subtype_seed` alone.
 
+## Derived slot budgets (this set's size)
+
+These are the approximate per-rarity slot counts your skeleton will have at this
+set size, and how each rarity splits across mono / multicolor / colorless slots:
+
+{budget_listing}
+
+Propose cycles and signposts that FIT these budgets. A multicolor cycle consumes
+slots from its rarity's multicolor budget: a `pairs10` cycle needs 10 multicolor
+slots of its rarity, an `allied5` / `enemy5` needs 5. `signposts_per_pair` is
+bounded by the UNCOMMON multicolor budget above (N per pair x 10 pairs must fit
+it) — on a small set that budget is only a handful, so 2 per pair will only cover
+the first few pairs. A cycle that doesn't fit its budget is dropped, so size your
+proposals to the numbers above rather than relying on reconciliation.
+
 ## Cycle spans
 
 A cycle's `span` chooses how its members spread across colors:

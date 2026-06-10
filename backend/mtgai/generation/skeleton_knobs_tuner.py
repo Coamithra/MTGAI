@@ -135,6 +135,31 @@ def _cycle_span_listing() -> str:
     )
 
 
+def _budget_listing(set_size: int) -> str:
+    """The derived per-rarity slot budgets for this set_size, so the AI proposes
+    cycles/signposts that actually fit.
+
+    Reuses ``derive_rarity_budgets`` (the same math ``generate_skeleton`` builds the
+    matrix from) at DEFAULT knobs — the tuner hasn't run yet, so default knobs are
+    the only basis available, and the figures are guidance (the deterministic layer
+    still reconciles). A ``pairs10`` cycle needs 10 slots of its rarity that are
+    multicolor; ``signposts_per_pair`` is bounded by the uncommon multicolor budget.
+    """
+    from mtgai.skeleton.generator import derive_rarity_budgets
+
+    budgets = derive_rarity_budgets(set_size)
+    lines: list[str] = []
+    for rarity in ("common", "uncommon", "rare", "mythic"):
+        b = budgets.get(rarity)
+        if b is None:
+            continue
+        lines.append(
+            f"- {rarity}: ~{b.count} slots total "
+            f"(~{b.mono} mono, ~{b.multicolor} multicolor, ~{b.colorless} colorless)"
+        )
+    return "\n".join(lines)
+
+
 def _existing_cycles_listing(base: SkeletonKnobs) -> str:
     """Describe the user's pre-defined cycles so the AI doesn't re-propose or fight them.
 
@@ -189,6 +214,7 @@ def tune_knobs(
         ),
         card_requests=format_card_requests(theme.get("card_requests") or []),
         knob_listing=_knob_listing(),
+        budget_listing=_budget_listing(set_size),
         cycle_spans=_cycle_span_listing(),
         existing_cycles=_existing_cycles_listing(base),
     )

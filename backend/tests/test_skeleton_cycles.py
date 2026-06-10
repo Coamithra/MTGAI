@@ -484,3 +484,105 @@ def test_skeleton_result_round_trips_knobs_and_cycles(tmp_path):
     assert restored.knobs.multicolor_rare == 0.40
     assert [c.id for c in restored.cycles] == ["t"]
     assert any(s.cycle_id == "t" for s in restored.slots)
+
+
+# ---------------------------------------------------------------------------
+# Knob-reconciliation warnings (card 6a2984d4): the signpost shortfall is no
+# longer silent, and the cycle-drop message names the REAL limiting constraint.
+# ---------------------------------------------------------------------------
+
+
+class TestDeriveRarityBudgets:
+    def test_reuses_color_targets(self):
+        from mtgai.skeleton.generator import _color_targets, derive_rarity_budgets
+
+        budgets = derive_rarity_budgets(277)
+        # The multicolor figure is exactly what the generator distributes.
+        _, multi, _ = _color_targets("uncommon", budgets["uncommon"].count, 277, default_knobs())
+        assert budgets["uncommon"].multicolor == multi
+        # Components sum back to the rarity count.
+        b = budgets["rare"]
+        assert b.mono + b.multicolor + b.colorless == b.count
+
+    def test_small_set_uncommon_multicolor_is_a_handful(self):
+        from mtgai.skeleton.generator import derive_rarity_budgets
+
+        # The MLP case: a 50-card set's uncommon multicolor capacity is ~5 (the
+        # signpost ceiling), far below the requested 20.
+        assert derive_rarity_budgets(50)["uncommon"].multicolor == 5
+
+
+class TestSignpostShortfallWarning:
+    def test_small_set_two_per_pair_warns_with_numbers(self):
+        # MLP repro: signposts_per_pair=2 on a 50-card set requests 20 but only 5
+        # multicolor uncommons exist, covering 5 of 10 pairs.
+        k = SkeletonKnobs(signposts_per_pair=2)
+        r = generate_skeleton(_cfg(50), knobs=k)
+        shortfall = [w for w in r.knob_warnings if "Signpost shortfall" in w]
+        assert len(shortfall) == 1
+        msg = shortfall[0]
+        assert "2 per pair" in msg
+        assert "(20 total)" in msg
+        assert "delivered 5" in msg
+        assert "5 of 10 pairs" in msg
+        # The first five WUBRG pairs are covered; the rest uncovered.
+        assert "covered: WU, WB, WR, WG, UB" in msg
+        assert "uncovered: UR, UG, BR, BG, RG" in msg
+        # And it really only marked 5 signposts.
+        assert sum(1 for s in r.slots if s.signpost_for) == 5
+
+    def test_full_coverage_set_has_no_shortfall(self):
+        # A 277-card set with 1/pair fills all 10 — no shortfall warning.
+        r = generate_skeleton(_cfg(277), knobs=SkeletonKnobs(signposts_per_pair=1))
+        assert not any("Signpost shortfall" in w for w in r.knob_warnings)
+        assert sum(1 for s in r.slots if s.signpost_for) == 10
+
+    def test_full_coverage_two_per_pair_has_no_shortfall(self):
+        # 277 with 2/pair has 20 multicolor uncommons → all 20 signposts delivered.
+        r = generate_skeleton(_cfg(277), knobs=SkeletonKnobs(signposts_per_pair=2))
+        assert not any("Signpost shortfall" in w for w in r.knob_warnings)
+        assert sum(1 for s in r.slots if s.signpost_for) == 20
+
+    def test_signposts_disabled_no_shortfall(self):
+        r = generate_skeleton(_cfg(50), knobs=SkeletonKnobs(signposts_per_pair=0))
+        assert not any("Signpost shortfall" in w for w in r.knob_warnings)
+
+
+class TestCycleDropMessage:
+    def test_multicolor_cycle_drop_names_multicolor_capacity(self):
+        # MLP repro: a pairs10 uncommon cycle can't fit a 50-card set. The REAL
+        # limit is the ~5 multicolor-uncommon capacity, NOT the 18 uncommon budget.
+        k = SkeletonKnobs(
+            cycles=[
+                Cycle(
+                    id="goh",
+                    name="Guardians of Harmony",
+                    span=CycleSpan.PAIRS10,
+                    rarity="uncommon",
+                )
+            ]
+        )
+        r = generate_skeleton(_cfg(50), knobs=k)
+        assert r.cycles == []
+        drop = [w for w in r.knob_warnings if "Guardians of Harmony" in w]
+        assert len(drop) == 1
+        msg = drop[0]
+        # Names the multicolor-slot capacity as the constraint…
+        assert "multicolor slots" in msg
+        assert "multicolor-slot capacity" in msg
+        assert "10 members need 10 multicolor slots" in msg
+        # …and does NOT misstate it as the (larger) whole-rarity budget.
+        assert "budget (18)" not in msg
+
+    def test_reserve_cycles_threads_multicolor_capacity(self):
+        from mtgai.skeleton.generator import _reserve_cycles, _scale_rarity, derive_rarity_budgets
+
+        counts = _scale_rarity(50)
+        caps = {r: b.multicolor for r, b in derive_rarity_budgets(50).items()}
+        _, kept, warnings = _reserve_cycles(
+            [Cycle(id="g", name="Gates", span=CycleSpan.PAIRS10, rarity="uncommon")],
+            counts,
+            caps,
+        )
+        assert kept == []
+        assert "multicolor-slot capacity" in warnings[0]
