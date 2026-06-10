@@ -44,7 +44,7 @@ import re
 
 from mtgai.models.card import Card
 from mtgai.validation import ValidationError, ValidationSeverity
-from mtgai.validation.rules_text import all_keywords
+from mtgai.validation.rules_text import _is_keyword_only_line, all_keywords
 
 # Splits oracle text into alternating non-paren / paren / non-quote / quote
 # spans so the casing pass runs only on the running-text spans. A paren span is
@@ -144,30 +144,45 @@ def _lowercase_span(span: str) -> str:
     return "".join(out)
 
 
-def _map_running_text(text: str, fn) -> str:
-    """Apply ``fn`` to each running-text span, leaving paren/quote spans verbatim."""
+def _map_span_aware(line: str, fn) -> str:
+    """Apply ``fn`` to each running-text span of ``line``, leaving paren/quote verbatim."""
     out: list[str] = []
     last = 0
-    for m in _SKIP_SPAN_RE.finditer(text):
-        out.append(fn(text[last : m.start()]))
+    for m in _SKIP_SPAN_RE.finditer(line):
+        out.append(fn(line[last : m.start()]))
         out.append(m.group())
         last = m.end()
-    out.append(fn(text[last:]))
+    out.append(fn(line[last:]))
     return "".join(out)
 
 
+def _scan_line(line: str) -> list[str]:
+    """Over-capitalized keywords in a line's running-text spans (paren/quote excluded)."""
+    found: list[str] = []
+    last = 0
+    for m in _SKIP_SPAN_RE.finditer(line):
+        found += _scan_span(line[last : m.start()])
+        last = m.end()
+    found += _scan_span(line[last:])
+    return found
+
+
 def validate_keyword_casing(card: Card) -> list[ValidationError]:
-    """Flag keywords capitalized mid-sentence in running oracle text — AUTO."""
+    """Flag keywords capitalized mid-sentence in running oracle text — AUTO.
+
+    A pure keyword-list line ("Flying, Trample") is the
+    ``rules_text.keyword_capitalization`` fixer's domain — skip it so the two
+    checks don't double-flag the same token.
+    """
     oracle = card.oracle_text or ""
     if not oracle:
         return []
 
     found: list[str] = []
-    last = 0
-    for m in _SKIP_SPAN_RE.finditer(oracle):
-        found += _scan_span(oracle[last : m.start()])
-        last = m.end()
-    found += _scan_span(oracle[last:])
+    for line in oracle.split("\n"):
+        if _is_keyword_only_line(line.strip()):
+            continue
+        found += _scan_line(line)
 
     if not found:
         return []
@@ -194,7 +209,13 @@ def fix_keyword_casing(card: Card, error: ValidationError) -> Card:
     """
     if not card.oracle_text:
         return card
-    new_oracle = _map_running_text(card.oracle_text, _lowercase_span)
+    new_lines = []
+    for line in card.oracle_text.split("\n"):
+        if _is_keyword_only_line(line.strip()):
+            new_lines.append(line)  # keyword_capitalization's domain
+        else:
+            new_lines.append(_map_span_aware(line, _lowercase_span))
+    new_oracle = "\n".join(new_lines)
     if new_oracle == card.oracle_text:
         return card
     return card.model_copy(update={"oracle_text": new_oracle})

@@ -2682,6 +2682,28 @@ class TestKeywordCasing:
         result = auto_fix_card(card, validate_card(card))
         assert result.card.oracle_text == "Target creature gains salvage until end of turn."
 
+    def test_keyword_list_line_left_to_keyword_capitalization(self):
+        # A pure keyword-list line is keyword_capitalization's domain — this check
+        # must NOT also flag it (no double-flag of the same token).
+        card = _make_card(oracle_text="Flying, Trample")
+        codes = [
+            e.error_code
+            for e in _errors_by_validator(validate_card(card), "rules_text")
+            if e.error_code and e.error_code.startswith("rules_text.keyword")
+        ]
+        assert codes == ["rules_text.keyword_capitalization"]
+
+    def test_mid_sentence_comma_run_fully_lowercased(self):
+        # A comma-separated keyword run inside a SENTENCE is still all running
+        # text — every entry (not just the first) is lowercased.
+        card = _make_card(
+            oracle_text="Target creature gains Flying, Vigilance, and Trample until end of turn.",
+        )
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == (
+            "Target creature gains flying, vigilance, and trample until end of turn."
+        )
+
     def test_fix_is_idempotent(self):
         card = _make_card(
             oracle_text="Target creature gains Indestructible and Lifelink until end of turn.",
