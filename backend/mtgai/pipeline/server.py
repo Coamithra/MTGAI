@@ -6209,19 +6209,25 @@ async def wizard_art_prompts_tags(request: Request) -> JSONResponse:
 # ---------------------------------------------------------------------------
 
 
-def _ai_review_load(instance_id: str | None = None) -> tuple[Path, dict[str, dict], dict, dict]:
-    """Load the AI Design Review tab's inputs: cards, AI reviews, user decisions.
+def _ai_review_load(
+    instance_id: str | None = None,
+) -> tuple[Path, dict[str, dict], dict, dict, dict[str, str]]:
+    """Load the AI Design Review tab's inputs: cards, AI reviews, decisions, sigs.
 
-    Returns ``(asset, view_cards, reviews_by_cn, decisions)`` where ``view_cards``
-    is the instance's card-gen pool (lands excluded), ``reviews_by_cn`` maps a
-    collector number to its persisted ``CardReviewResult`` JSON (from
-    ``reviews/<cn>.json``), and ``decisions`` is the user-decisions sidecar.
+    Returns ``(asset, view_cards, reviews_by_cn, decisions, reviewed_sigs)`` where
+    ``view_cards`` is the instance's card-gen pool (lands excluded),
+    ``reviews_by_cn`` maps a collector number to its persisted ``CardReviewResult``
+    JSON (from ``reviews/<cn>.json``), ``decisions`` is the user-decisions sidecar,
+    and ``reviewed_sigs`` is the ``reviewed.json`` map of collector number → the
+    ``card_signature`` each card was reviewed under (so a persisted verdict made
+    against a now-stale body is recognized as stale — see ``review_is_stale``).
     """
     from mtgai.review.ai_review import (
         DECISIONS_FILENAME,
         REVIEWED_FILENAME,
         CardReviewResult,
         load_decisions,
+        load_reviewed,
     )
 
     asset = set_artifact_dir()
@@ -6243,11 +6249,14 @@ def _ai_review_load(instance_id: str | None = None) -> tuple[Path, dict[str, dic
                 logger.warning("Could not parse review %s for ai_review tab", rp)
                 continue
             reviews_by_cn[review.collector_number] = review.model_dump()
-    return asset, view_cards, reviews_by_cn, load_decisions(asset)
+    return asset, view_cards, reviews_by_cn, load_decisions(asset), load_reviewed(asset)
 
 
 def _ai_review_tiles(
-    view_cards: dict[str, dict], reviews_by_cn: dict[str, dict], decisions: dict
+    view_cards: dict[str, dict],
+    reviews_by_cn: dict[str, dict],
+    decisions: dict,
+    reviewed_sigs: dict[str, str] | None = None,
 ) -> list[dict]:
     """Build the per-card review tiles, sorted by collector number.
 
@@ -6255,14 +6264,25 @@ def _ai_review_tiles(
     JSON) + the effective decision (user override > AI verdict > pending) + a
     ``flagged`` flag (the card carries a ``regen_reason``, i.e. it's bound for a
     from-scratch regeneration).
-    """
-    from mtgai.review.ai_review import CardReviewResult, review_tile
 
+    A persisted AI verdict is **dropped as stale** (the card reads not-yet-reviewed)
+    when ``reviewed.json`` recorded a signature for it that no longer matches the
+    live body — i.e. a regen bounce rewrote the slot after that verdict was made.
+    Without this the tab would paint the archived old card's red-X / "tweaked"
+    chrome onto the fresh body until the new round verdicts it (see
+    ``ai_review.review_is_stale``). The legacy/no-signature case is never stale, so
+    pre-tracking projects keep their current behavior.
+    """
+    from mtgai.review.ai_review import CardReviewResult, review_is_stale, review_tile
+
+    reviewed_sigs = reviewed_sigs or {}
     tiles: list[dict] = []
     for cn in sorted(view_cards):
         card = view_cards[cn]
         review_dict = reviews_by_cn.get(cn)
         review = CardReviewResult.model_validate(review_dict) if review_dict else None
+        if review is not None and review_is_stale(reviewed_sigs.get(cn), card):
+            review = None  # verdict belongs to the archived pre-regen body
         tile = review_tile(card, review)
         decision = decisions.get(cn)
         flagged = bool(card.get("regen_reason"))
@@ -6283,12 +6303,17 @@ def _effective_decision(
 ) -> dict:
     """Resolve a card's effective review state for the stamp.
 
-    Precedence: an explicit, NON-stale user decision wins; else a flagged card
-    (bound for regen) is "rejected"; else a reviewed card maps OK→approved /
-    REVISE→rejected; else "pending" (not yet reviewed). ``reason`` is the rejection
-    blurb shown under the card. For a flagged card it's the card's own
-    ``regen_reason`` (the actual "why" the review/gate recorded), falling back to a
-    generic blurb only when no reason was stamped.
+    Precedence: an explicit, NON-stale user decision wins; else a card flagged by
+    THIS gate (a genuine design rejection — ``flagged_by="ai_review"``, or a
+    reviewed-REVISE verdict) is "rejected"; else a card carrying an *unresolved
+    upstream* conformance flag the conformance gate accepted at budget exhaustion
+    (``flagged_by="conformance"`` with an OK/absent design verdict) is
+    "flagged_upstream" — an amber informational chip, NOT a design rejection, since
+    the council voted OK and the safety-valve survivor is "NOT a quality bar"; else
+    a reviewed card maps OK→approved / REVISE→rejected; else "pending" (not yet
+    reviewed). ``reason`` is the blurb shown under the card. For a flagged card it's
+    the card's own ``regen_reason`` (the actual "why" the gate recorded), falling
+    back to a generic blurb only when no reason was stamped.
 
     A decision is **stale** two ways, both ignored so the fresh flagged/AI verdict
     surfaces instead of the old user call painting forever:
@@ -6314,10 +6339,25 @@ def _effective_decision(
             "source": decision.get("source") or "user",
         }
     if flagged:
+        flagged_by = (card or {}).get("flagged_by") or ""
+        reviewed_revise = tile.get("reviewed") and tile.get("verdict") == "REVISE"
+        # An upstream conformance flag the design council DIDN'T also reject is a
+        # budget-exhaustion survivor, not a design rejection — show the amber
+        # "accepted upstream flag" chip and attribute it to the conformance gate.
+        # A flag from THIS stage, or a card the council also voted REVISE on, is a
+        # genuine design rejection and keeps the red X.
+        if flagged_by == "conformance" and not reviewed_revise:
+            return {
+                "verdict": "flagged_upstream",
+                "reason": (regen_reason or "").strip() or "Flagged for regeneration.",
+                "source": "conformance",
+                "gate": "conformance",
+            }
         return {
             "verdict": "rejected",
             "reason": (regen_reason or "").strip() or "Flagged for regeneration.",
             "source": "ai",
+            "gate": flagged_by or "ai_review",
         }
     if not tile.get("reviewed"):
         return {"verdict": "pending", "reason": "", "source": ""}
@@ -6329,18 +6369,27 @@ def _effective_decision(
 
 
 def _ai_review_summary(tiles: list[dict]) -> dict:
-    """Headline counts for the summary bar."""
+    """Headline counts for the summary bar.
+
+    ``upstream_flagged`` (cards carrying an accepted upstream conformance flag) is
+    counted separately from ``rejected`` so a regen instance's headline reads true:
+    safety-valve survivors are not design-review rejections, and a regenerated card
+    whose stale verdict was dropped (P0) counts as ``pending``, not ``approved`` /
+    ``rejected``.
+    """
     reviewed = sum(1 for t in tiles if t.get("reviewed"))
     revised = sum(1 for t in tiles if t.get("card_was_changed"))
     approved = sum(1 for t in tiles if t["effective"]["verdict"] == "approved")
     rejected = sum(1 for t in tiles if t["effective"]["verdict"] == "rejected")
     pending = sum(1 for t in tiles if t["effective"]["verdict"] == "pending")
+    upstream_flagged = sum(1 for t in tiles if t["effective"]["verdict"] == "flagged_upstream")
     return {
         "reviewed": reviewed,
         "revised": revised,
         "approved": approved,
         "rejected": rejected,
         "pending": pending,
+        "upstream_flagged": upstream_flagged,
         "total": len(tiles),
     }
 
@@ -6357,8 +6406,8 @@ async def wizard_ai_review_state(instance_id: str | None = None) -> JSONResponse
     """
     project = _require_active_project()
     settings = project.settings
-    _asset, view_cards, reviews_by_cn, decisions = _ai_review_load(instance_id)
-    tiles = _ai_review_tiles(view_cards, reviews_by_cn, decisions)
+    _asset, view_cards, reviews_by_cn, decisions, reviewed_sigs = _ai_review_load(instance_id)
+    tiles = _ai_review_tiles(view_cards, reviews_by_cn, decisions, reviewed_sigs)
     return JSONResponse(
         {
             "cards": tiles,
@@ -6387,7 +6436,7 @@ def _ai_review_card_path(asset: Path, collector_number: str) -> Path | None:
 
 def _ai_review_single_tile(asset: Path, collector_number: str) -> dict | None:
     """Re-read one card + its review + decision into a fresh tile (for action responses)."""
-    from mtgai.review.ai_review import CardReviewResult, load_decisions
+    from mtgai.review.ai_review import CardReviewResult, load_decisions, load_reviewed
 
     path = _ai_review_card_path(asset, collector_number)
     if path is None:
@@ -6402,8 +6451,10 @@ def _ai_review_single_tile(asset: Path, collector_number: str) -> dict | None:
             review = CardReviewResult.model_validate_json(review_path.read_text(encoding="utf-8"))
         except Exception:
             review = None
-    from mtgai.review.ai_review import review_tile
+    from mtgai.review.ai_review import review_is_stale, review_tile
 
+    if review is not None and review_is_stale(load_reviewed(asset).get(collector_number), card):
+        review = None  # verdict belongs to the archived pre-regen body
     tile = review_tile(card, review)
     flagged = bool(card.get("regen_reason"))
     tile["flagged"] = flagged
