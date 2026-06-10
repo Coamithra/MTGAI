@@ -416,6 +416,145 @@ def _make_svg_mana_symbol(symbol: str, size: int) -> Image.Image | None:
     return canvas
 
 
+# ---------------------------------------------------------------------------
+# Compound mana symbols — hybrid {G/U}, twobrid {2/W}, phyrexian {W/P}
+#
+# These have no SVG asset of their own. The canonical MTG hybrid pip is a disc
+# split along the lower-left-to-upper-right diagonal: the FIRST written half
+# fills the upper-left triangle, the SECOND the lower-right triangle, each with
+# its own disc color and a small glyph centered in that half. Twobrid replaces
+# the first half's glyph with the generic "2" numeral on the generic-gray
+# ground. Phyrexian is NOT split — a single colored disc with the phi glyph.
+#
+# Built from existing parts at render time (no new assets): the mono glyph SVGs
+# (``assets/symbols/mana/<x>.svg``) + the per-color disc/glyph colors. Degrades
+# to the text-label fallback when no SVG backend is available, exactly like the
+# mono path.
+# ---------------------------------------------------------------------------
+
+# Half-glyph scale (fraction of the full disc size). Smaller than the mono 0.72
+# because each glyph only occupies a triangular half — it sits in the centroid
+# of its triangle, which is offset toward that corner.
+_HYBRID_GLYPH_SCALE = 0.42
+# Centroid of a corner triangle sits ~1/3 of the way from the diagonal toward
+# the corner, i.e. ~1/3 of the disc dimension off-center toward that corner.
+_HYBRID_GLYPH_NUDGE = 0.20
+
+
+def _is_compound_symbol(symbol: str) -> bool:
+    """True for a hybrid / twobrid / phyrexian pip like ``G/U``, ``2/W``, ``W/P``."""
+    return "/" in symbol
+
+
+def _colored_glyph(svg_name: str, fg: tuple[int, int, int], size: int) -> Image.Image | None:
+    """Rasterize ``<svg_name>.svg`` and recolor its alpha to ``fg`` at ``size``."""
+    glyph_img = _rasterize_svg(MANA_SVG_DIR / f"{svg_name}.svg", size, size)
+    if glyph_img is None:
+        return None
+    colored = Image.new("RGBA", (size, size), (*fg, 255))
+    colored.putalpha(glyph_img.split()[3])
+    return colored
+
+
+def _diagonal_half_mask(size: int, upper_left: bool) -> Image.Image:
+    """An ``L`` mask selecting one triangle of the lower-left→upper-right diagonal.
+
+    ``upper_left=True`` selects the upper-left triangle (the first hybrid half),
+    ``False`` the lower-right (the second half). The diagonal runs from the
+    bottom-left corner ``(0, size)`` to the top-right corner ``(size, 0)``.
+    """
+    mask = Image.new("L", (size, size), 0)
+    draw = ImageDraw.Draw(mask)
+    if upper_left:
+        draw.polygon([(0, 0), (size, 0), (0, size)], fill=255)
+    else:
+        draw.polygon([(size, size), (size, 0), (0, size)], fill=255)
+    return mask
+
+
+def _place_half_glyph(canvas: Image.Image, glyph: Image.Image, upper_left: bool, size: int) -> None:
+    """Composite a shrunk glyph into the centroid of one diagonal half of ``canvas``."""
+    g_size = max(1, int(size * _HYBRID_GLYPH_SCALE))
+    g = glyph.resize((g_size, g_size), Image.LANCZOS)
+    nudge = int(size * _HYBRID_GLYPH_NUDGE)
+    center = (size - g_size) // 2
+    pos = (center - nudge, center - nudge) if upper_left else (center + nudge, center + nudge)
+    canvas.alpha_composite(g, pos)
+
+
+def _make_split_compound_symbol(first: str, second: str, size: int) -> Image.Image | None:
+    """Synthesize a diagonally-split two-tone pip for hybrid / twobrid.
+
+    ``first`` is the upper-left half (a colored pip or the ``2`` numeral),
+    ``second`` the lower-right. Returns None if either glyph can't rasterize so
+    the caller falls back to the text label.
+    """
+    first_bg, first_fg = _mana_colors(first)
+    second_bg, second_fg = _mana_colors(second)
+
+    first_glyph = _colored_glyph(_svg_filename(first), first_fg, size)
+    second_glyph = _colored_glyph(_svg_filename(second), second_fg, size)
+    if first_glyph is None or second_glyph is None:
+        return None
+
+    # Two full colored discs, each masked to its diagonal half, composited
+    # together — so the dark border ring + inner fill of _make_circle_background
+    # is preserved on both halves (a clean split disc, not two flat triangles).
+    upper = _make_circle_background(size, first_bg)
+    lower = _make_circle_background(size, second_bg)
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    canvas.paste(upper, (0, 0), _diagonal_half_mask(size, upper_left=True))
+    canvas.paste(lower, (0, 0), _diagonal_half_mask(size, upper_left=False))
+
+    _place_half_glyph(canvas, first_glyph, upper_left=True, size=size)
+    _place_half_glyph(canvas, second_glyph, upper_left=False, size=size)
+    return canvas
+
+
+def _make_phyrexian_symbol(color: str, size: int) -> Image.Image | None:
+    """Synthesize a phyrexian pip: the colored disc with the phi (``p.svg``) glyph.
+
+    Not split — phyrexian mana is a single colored disc carrying the phi symbol
+    in the color's glyph foreground. Returns None if the phi glyph can't
+    rasterize so the caller falls back to the text label.
+    """
+    bg, fg = _mana_colors(color)
+    glyph = _colored_glyph("p", fg, size)
+    if glyph is None:
+        return None
+
+    canvas = _make_circle_background(size, bg)
+    glyph_size = int(size * 0.72)
+    glyph_offset = (size - glyph_size) // 2
+    canvas.alpha_composite(
+        glyph.resize((glyph_size, glyph_size), Image.LANCZOS), (glyph_offset, glyph_offset)
+    )
+    return canvas
+
+
+def _make_compound_mana_symbol(symbol: str, size: int) -> Image.Image | None:
+    """Dispatch a compound pip (``A/B``) to the right synthesizer.
+
+    Phyrexian (one part is ``P``) → single colored disc with the phi glyph.
+    Hybrid / twobrid (everything else) → diagonal split disc, first part
+    upper-left. Returns None when the parts aren't a well-formed two-part
+    compound or a glyph can't rasterize, so :func:`get_mana_symbol` degrades to
+    the text-label fallback.
+    """
+    parts = symbol.upper().split("/")
+    if len(parts) != 2:
+        return None
+    first, second = parts[0], parts[1]
+
+    if "P" in (first, second):
+        # Phyrexian: the non-P part names the disc color (P alone is rare but maps
+        # to the generic gray ground via _mana_colors).
+        color = second if first == "P" else first
+        return _make_phyrexian_symbol(color, size)
+
+    return _make_split_compound_symbol(first, second, size)
+
+
 SCRYFALL_SVG_DIR = PROJECT_ROOT / "assets" / "symbols" / "scryfall"
 
 
@@ -470,8 +609,16 @@ def get_mana_symbol(symbol: str, size: int) -> Image.Image:
     if cache_key in _mana_cache:
         return _mana_cache[cache_key]
 
+    result: Image.Image | None = None
+
+    # 0. Compound pips (hybrid {G/U} / twobrid {2/W} / phyrexian {W/P}) have no
+    #    SVG asset — synthesize them at render time from the mono glyph parts.
+    if _is_compound_symbol(symbol):
+        result = _make_compound_mana_symbol(symbol, size)
+
     # 1. Scryfall official SVGs (vector, official colors, best quality)
-    result = _load_scryfall_svg(symbol, size)
+    if result is None:
+        result = _load_scryfall_svg(symbol, size)
 
     # 2. Pre-rendered WebP from printmtg (800x800, good quality)
     if result is None:
@@ -481,7 +628,8 @@ def get_mana_symbol(symbol: str, size: int) -> Image.Image:
     if result is None:
         result = _make_svg_mana_symbol(symbol, size)
 
-    # 4. Pillow fallback (colored circles with text labels)
+    # 4. Pillow fallback (colored circles with text labels — also the graceful
+    #    degrade for a compound pip when no SVG backend is available).
     if result is None:
         result = _make_fallback_mana_symbol(symbol, size)
 
