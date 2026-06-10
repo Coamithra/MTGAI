@@ -255,26 +255,30 @@ def _parse_detection_entities(
       for the diagnostic WARN.
     """
     entities: list[dict] = []
-    seen_keys: set[str] = set()
-    detected = 0
-    dropped = 0
+    accepted_keys: set[str] = set()
+    counted_keys: set[str] = set()
+    dropped_keys: set[str] = set()
     bad_refs: list = []
     for item in raw:
         if not isinstance(item, dict):
             continue
         key = normalize_entity_key(str(item.get("entity_key") or item.get("name") or ""))
-        if not key or key in seen_keys:
+        # Count each distinct named key once for the loss ratio; an already-accepted
+        # key is a plain duplicate (skip). A dropped key does NOT consume the key, so
+        # a later occurrence of it with valid refs can still win.
+        if not key or key in accepted_keys:
             continue
-        seen_keys.add(key)
-        detected += 1
+        counted_keys.add(key)
         raw_refs = list(dict.fromkeys(str(c) for c in (item.get("cards") or [])))
         cns = [cn for cn in raw_refs if cn in valid_cards]
         if not cns:
-            dropped += 1
+            dropped_keys.add(key)
             for ref in raw_refs:
                 if len(bad_refs) < 5 and ref not in bad_refs:
                     bad_refs.append(ref)
             continue
+        accepted_keys.add(key)
+        dropped_keys.discard(key)  # a later valid occurrence rescued an earlier drop
         entities.append(
             {
                 "entity_key": key,
@@ -284,7 +288,7 @@ def _parse_detection_entities(
                 "note": str(item.get("note") or ""),
             }
         )
-    return entities, detected, dropped, bad_refs
+    return entities, len(counted_keys), len(dropped_keys), bad_refs
 
 
 def _detection_call(

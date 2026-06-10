@@ -323,6 +323,26 @@ def test_detect_no_retry_when_refs_valid(monkeypatch) -> None:
     assert diag["attempts"] == 1
 
 
+def test_detect_dropped_key_rescued_by_later_valid_occurrence(monkeypatch) -> None:
+    """A key first seen with bad refs does NOT consume the slug — a later occurrence
+    of the same key with valid refs is still accepted (no spurious dup-skip)."""
+    _patch_llm(
+        monkeypatch,
+        [
+            {"entity_key": "aria", "name": "Aria", "kind": "character", "cards": [0.0]},
+            {"entity_key": "aria", "name": "Aria", "kind": "character", "cards": ["001"]},
+        ],
+    )
+    diag: dict = {}
+    entities, _ = et.detect_entity_tags(_cards_fixture(), {}, model_id="m", diagnostics=diag)
+    assert [e["entity_key"] for e in entities] == ["aria"]
+    assert entities[0]["cards"] == ["001"]
+    # One distinct key, ultimately not dropped -> no retry, no failure.
+    assert diag["detected"] == 1
+    assert diag["dropped"] == 0
+    assert diag["attempts"] == 1
+
+
 def test_detect_no_retry_below_threshold(monkeypatch) -> None:
     """Only a MAJORITY (>50%) ref loss triggers the retry; a single drop does not."""
     one_bad = [
