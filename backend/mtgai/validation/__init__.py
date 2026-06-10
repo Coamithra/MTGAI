@@ -18,12 +18,19 @@ Validators owned by this module:
     2. whitespace     — Literal backslash-n/-t escapes from double-escaped LLM
                         JSON (AUTO-fixable; runs first so line-based checks see
                         real line structure)
-    3. mana           — CMC / color / color_identity consistency (AUTO-fixable)
-    4. type_check     — Creature P/T, planeswalker loyalty, aura/equipment
-    5. rules_text     — Self-reference, keyword caps, mana symbols (AUTO-fixable)
-    6. keyword_ordering — Keyword abilities above complex abilities (AUTO-fixable)
-    7. text_overflow  — Character count limits (REGEN trigger)
-    8. uniqueness     — Collector-number collision (AUTO-fixable)
+    3. blank_lines    — Empty paragraphs (runs of 2+ newlines) in oracle_text
+                        (AUTO-fixable; another line-structure normalizer, healed
+                        in the same pre-pass as whitespace)
+    4. mana           — CMC / color / color_identity consistency (AUTO-fixable)
+    5. type_check     — Creature P/T, planeswalker loyalty, aura/equipment
+    6. rules_text     — Self-reference, keyword caps, modal em-dash period,
+                        mana symbols (AUTO-fixable)
+    7. keyword_casing — Mid-sentence keyword capitalization in running text
+                        (AUTO-fixable; the running-text complement to
+                        rules_text's keyword-list-line casing fixer)
+    8. keyword_ordering — Keyword abilities above complex abilities (AUTO-fixable)
+    9. text_overflow  — Character count limits (REGEN trigger)
+   10. uniqueness     — Collector-number collision (AUTO-fixable)
 
 Design-judgment validators (consumed by analysis.heuristic_checks):
     - power_level
@@ -92,6 +99,8 @@ def validate_card(
     :func:`mtgai.analysis.heuristic_checks.check_card_heuristics` and are called
     by the council reviewer / final QA, not the gen pipeline.
     """
+    from mtgai.validation.blank_lines import validate_blank_lines
+    from mtgai.validation.keyword_casing import validate_keyword_casing
     from mtgai.validation.keyword_ordering import validate_keyword_ordering
     from mtgai.validation.mana import validate_mana_consistency
     from mtgai.validation.rules_text import validate_rules_text
@@ -110,9 +119,17 @@ def validate_card(
     # surface for auto_fix=False callers and the backstop for direct
     # validate_card + auto_fix_card callers without the pre-pass.
     errors += validate_escaped_whitespace(card)
+    # Blank-line collapse is also a line-structure normalizer: it runs alongside
+    # whitespace (its primary heal is the same pre-pass) so the line-based checks
+    # below see canonical line structure. This in-sequence check is the
+    # diagnostic / no-pre-pass backstop, exactly like whitespace.
+    errors += validate_blank_lines(card)
     errors += validate_mana_consistency(card)
     errors += validate_type_consistency(card)
     errors += validate_rules_text(card)
+    # Mid-sentence keyword capitalization — the running-text complement to the
+    # keyword-list-line casing fixer inside validate_rules_text.
+    errors += validate_keyword_casing(card)
     errors += validate_keyword_ordering(card)
     errors += validate_text_overflow(card)
 
@@ -220,6 +237,8 @@ def _register_auto_fixers() -> None:
     if _AUTO_FIX_REGISTRY:
         return  # already populated
 
+    from mtgai.validation.blank_lines import fix_blank_lines
+    from mtgai.validation.keyword_casing import fix_keyword_casing
     from mtgai.validation.keyword_ordering import fix_keyword_ordering
     from mtgai.validation.mana import (
         fix_cmc,
@@ -238,6 +257,7 @@ def _register_auto_fixers() -> None:
         fix_keyword_commas,
         fix_line_periods,
         fix_modal_asterisk_bullet,
+        fix_modal_emdash_period,
         fix_oracle_type_prefix,
         fix_tap_colon,
     )
@@ -253,6 +273,7 @@ def _register_auto_fixers() -> None:
     _AUTO_FIX_REGISTRY.update(
         {
             "whitespace.literal_escape": fix_escaped_whitespace,
+            "rules_text.blank_lines": fix_blank_lines,
             "mana.invalid_format": fix_invalid_format,
             "mana.cmc_mismatch": fix_cmc,
             "mana.colors_mismatch": fix_colors,
@@ -267,7 +288,9 @@ def _register_auto_fixers() -> None:
             "rules_text.tap_colon": fix_tap_colon,
             "rules_text.keyword_commas": fix_keyword_commas,
             "rules_text.line_period": fix_line_periods,
+            "rules_text.modal_emdash_period": fix_modal_emdash_period,
             "rules_text.keyword_capitalization": fix_keyword_capitalization,
+            "rules_text.keyword_casing": fix_keyword_casing,
             "rules_text.cannot": fix_cannot,
             "rules_text.modal_asterisk_bullet": fix_modal_asterisk_bullet,
             "rules_text.oracle_type_prefix": fix_oracle_type_prefix,

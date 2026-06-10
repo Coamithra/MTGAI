@@ -27,6 +27,7 @@ from mtgai.validation import (
     validate_card_from_raw,
 )
 from mtgai.validation.color_pie import validate_color_pie
+from mtgai.validation.keyword_casing import fix_keyword_casing
 from mtgai.validation.power_level import classify_pt, validate_power_level
 from mtgai.validation.uniqueness import (
     validate_collector_number,
@@ -940,6 +941,14 @@ class TestPTLeakedIntoOracle:
 
 _DUMMY_ERR = ValidationError(
     validator="rules_text", severity=ValidationSeverity.AUTO, field="oracle_text", message=""
+)
+
+_KEYWORD_CASING_ERR = ValidationError(
+    validator="rules_text",
+    severity=ValidationSeverity.AUTO,
+    field="oracle_text",
+    message="",
+    error_code="rules_text.keyword_casing",
 )
 
 
@@ -2592,3 +2601,284 @@ class TestIntegration:
         assert result.card.cmc == 3.0
         assert "Flame Serpent" not in result.card.oracle_text
         assert "enters the battlefield" not in result.card.oracle_text
+
+
+# ===========================================================================
+# Mid-sentence keyword capitalization (keyword_casing)
+# ===========================================================================
+
+
+class TestKeywordCasing:
+    """Keywords capitalized in running text (gains Indestructible -> indestructible)."""
+
+    def test_mid_sentence_keyword_flagged_auto(self):
+        card = _make_card(oracle_text="Target creature gains Indestructible until end of turn.")
+        errors = _errors_by_validator(validate_card(card), "rules_text")
+        assert any(e.error_code == "rules_text.keyword_casing" for e in errors)
+        finding = next(e for e in errors if e.error_code == "rules_text.keyword_casing")
+        assert finding.severity == ValidationSeverity.AUTO
+        assert "Indestructible" in finding.message
+
+    def test_auto_fix_lowercases_mid_sentence_keyword(self):
+        card = _make_card(oracle_text="Target creature gains Lifelink until end of turn.")
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == "Target creature gains lifelink until end of turn."
+
+    def test_multiple_keywords_in_one_sentence(self):
+        card = _make_card(
+            oracle_text="When ~ attacks, it gains Lifelink and Trample until end of turn.",
+        )
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == (
+            "When ~ attacks, it gains lifelink and trample until end of turn."
+        )
+
+    def test_keyword_at_line_start_untouched(self):
+        # "Flying" begins the keyword-only line — correct capitalization, leave it.
+        card = _make_card(oracle_text="Flying\nWhenever ~ attacks, draw a card.")
+        assert not any(
+            e.error_code == "rules_text.keyword_casing"
+            for e in _errors_by_validator(validate_card(card), "rules_text")
+        )
+
+    def test_keyword_at_sentence_start_untouched(self):
+        # "Flying" begins a sentence after a period — leave the capital.
+        card = _make_card(oracle_text="When ~ dies, draw a card. Flying creatures get +1/+1.")
+        fixed = fix_keyword_casing(card, _KEYWORD_CASING_ERR)
+        assert fixed.oracle_text == card.oracle_text
+
+    def test_adjacent_capitalized_run_untouched(self):
+        # "Flying Token" — adjacent capital is likely a proper name, leave it.
+        card = _make_card(oracle_text="Create a 1/1 white Flying Token.")
+        fixed = fix_keyword_casing(card, _KEYWORD_CASING_ERR)
+        assert fixed.oracle_text == card.oracle_text
+
+    def test_reminder_text_not_flagged(self):
+        card = _make_card(
+            oracle_text="Target creature gains flying. (Flying creatures fly over.)",
+        )
+        assert not any(
+            e.error_code == "rules_text.keyword_casing"
+            for e in _errors_by_validator(validate_card(card), "rules_text")
+        )
+
+    def test_fix_preserves_reminder_text(self):
+        card = _make_card(
+            oracle_text="Target creature gains Flying. (Flying lets it fly over creatures.)",
+        )
+        fixed = fix_keyword_casing(card, _KEYWORD_CASING_ERR)
+        assert fixed.oracle_text == (
+            "Target creature gains flying. (Flying lets it fly over creatures.)"
+        )
+
+    def test_quoted_granted_ability_untouched(self):
+        # A granted ability in quotes is its own text; its capital is correct.
+        card = _make_card(oracle_text='Enchanted creature has "Flying".')
+        fixed = fix_keyword_casing(card, _KEYWORD_CASING_ERR)
+        assert fixed.oracle_text == 'Enchanted creature has "Flying".'
+
+    def test_custom_keyword_lowercased(self, custom_keywords_salvage):
+        card = _make_card(oracle_text="Target creature gains Salvage until end of turn.")
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == "Target creature gains salvage until end of turn."
+
+    def test_keyword_list_line_left_to_keyword_capitalization(self):
+        # A pure keyword-list line is keyword_capitalization's domain — this check
+        # must NOT also flag it (no double-flag of the same token).
+        card = _make_card(oracle_text="Flying, Trample")
+        codes = [
+            e.error_code
+            for e in _errors_by_validator(validate_card(card), "rules_text")
+            if e.error_code and e.error_code.startswith("rules_text.keyword")
+        ]
+        assert codes == ["rules_text.keyword_capitalization"]
+
+    def test_mid_sentence_comma_run_fully_lowercased(self):
+        # A comma-separated keyword run inside a SENTENCE is still all running
+        # text — every entry (not just the first) is lowercased.
+        card = _make_card(
+            oracle_text="Target creature gains Flying, Vigilance, and Trample until end of turn.",
+        )
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == (
+            "Target creature gains flying, vigilance, and trample until end of turn."
+        )
+
+    def test_fix_is_idempotent(self):
+        card = _make_card(
+            oracle_text="Target creature gains Indestructible and Lifelink until end of turn.",
+        )
+        once = fix_keyword_casing(card, _KEYWORD_CASING_ERR)
+        twice = fix_keyword_casing(once, _KEYWORD_CASING_ERR)
+        assert once.oracle_text == twice.oracle_text
+        assert "indestructible" in once.oracle_text
+        assert "lifelink" in once.oracle_text
+
+    def test_clean_text_returns_same_instance(self):
+        card = _make_card(oracle_text="Flying, trample")
+        assert fix_keyword_casing(card, _KEYWORD_CASING_ERR) is card
+
+    def test_empty_oracle_no_op(self):
+        card = _make_card(oracle_text="")
+        assert fix_keyword_casing(card, _KEYWORD_CASING_ERR) is card
+        assert validate_card(card) == []
+
+
+# ===========================================================================
+# Stray period after a modal em-dash (rules_text.modal_emdash_period)
+# ===========================================================================
+
+
+class TestModalEmdashPeriod:
+    """ "{T}: Choose one —." should be "Choose one —" (bullets carry periods)."""
+
+    def test_stray_period_flagged_auto(self):
+        card = _make_card(oracle_text="{T}: Choose one —.\n• Draw a card.\n• Gain 2 life.")
+        errors = _errors_by_validator(validate_card(card), "rules_text")
+        assert any(e.error_code == "rules_text.modal_emdash_period" for e in errors)
+        finding = next(e for e in errors if e.error_code == "rules_text.modal_emdash_period")
+        assert finding.severity == ValidationSeverity.AUTO
+
+    def test_auto_fix_strips_stray_period(self):
+        card = _make_card(oracle_text="{T}: Choose one —.\n• Draw a card.\n• Gain 2 life.")
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == "{T}: Choose one —\n• Draw a card.\n• Gain 2 life."
+
+    def test_space_before_period_stripped(self):
+        card = _make_card(oracle_text="Choose one — .\n• Draw a card.")
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == "Choose one —\n• Draw a card."
+
+    def test_clean_emdash_line_not_flagged_or_modified(self):
+        # Root-cause guard: fix_line_periods must NOT append a period to a line
+        # ending in an em-dash, and the stray-period check must not fire.
+        card = _make_card(oracle_text="{T}: Choose one —\n• Draw a card.\n• Gain 2 life.")
+        errors = validate_card(card)
+        assert not any(e.error_code == "rules_text.line_period" for e in errors)
+        assert not any(e.error_code == "rules_text.modal_emdash_period" for e in errors)
+        result = auto_fix_card(card, errors)
+        assert result.card.oracle_text == card.oracle_text
+
+    def test_line_period_fixer_does_not_append_to_emdash(self):
+        from mtgai.validation.rules_text import fix_line_periods
+
+        card = _make_card(oracle_text="Choose one —\n• Draw a card.")
+        fixed = fix_line_periods(card, _DUMMY_ERR)
+        assert fixed.oracle_text == "Choose one —\n• Draw a card."
+
+    def test_reminder_text_emdash_period_preserved(self):
+        from mtgai.validation.rules_text import fix_modal_emdash_period
+
+        card = _make_card(oracle_text="Choose one —.\n• Draw. (A reminder — with a dash.)")
+        fixed = fix_modal_emdash_period(card, _DUMMY_ERR)
+        # The body em-dash period is stripped; the reminder span is untouched.
+        assert fixed.oracle_text == "Choose one —\n• Draw. (A reminder — with a dash.)"
+
+    def test_fix_is_idempotent(self):
+        from mtgai.validation.rules_text import fix_modal_emdash_period
+
+        card = _make_card(oracle_text="Choose one —.\n• Draw a card.")
+        once = fix_modal_emdash_period(card, _DUMMY_ERR)
+        twice = fix_modal_emdash_period(once, _DUMMY_ERR)
+        assert once.oracle_text == twice.oracle_text
+        assert once.oracle_text == "Choose one —\n• Draw a card."
+
+    def test_clean_text_returns_same_instance(self):
+        from mtgai.validation.rules_text import fix_modal_emdash_period
+
+        card = _make_card(oracle_text="Choose one —\n• Draw a card.")
+        assert fix_modal_emdash_period(card, _DUMMY_ERR) is card
+
+
+# ===========================================================================
+# Blank lines in oracle text (blank_lines)
+# ===========================================================================
+
+
+class TestBlankLines:
+    """Empty paragraphs (runs of 2+ newlines) between abilities."""
+
+    def test_blank_line_flagged_auto(self):
+        card = _make_card(oracle_text="Flying\n\nWhenever ~ attacks, draw a card.")
+        errors = _errors_by_validator(validate_card(card), "rules_text")
+        assert any(e.error_code == "rules_text.blank_lines" for e in errors)
+        finding = next(e for e in errors if e.error_code == "rules_text.blank_lines")
+        assert finding.severity == ValidationSeverity.AUTO
+        assert finding.field == "oracle_text"
+
+    def test_auto_fix_collapses_blank_line(self):
+        card = _make_card(oracle_text="Flying\n\nWhenever ~ attacks, draw a card.")
+        result = auto_fix_card(card, validate_card(card))
+        assert result.card.oracle_text == "Flying\nWhenever ~ attacks, draw a card."
+
+    def test_three_newlines_collapse_to_one(self):
+        from mtgai.validation.blank_lines import collapse_blank_lines
+
+        assert collapse_blank_lines("a\n\n\nb") == "a\nb"
+
+    def test_whitespace_only_line_collapsed(self):
+        from mtgai.validation.blank_lines import collapse_blank_lines
+
+        assert collapse_blank_lines("a\n   \nb") == "a\nb"
+
+    def test_leading_trailing_newlines_stripped(self):
+        from mtgai.validation.blank_lines import collapse_blank_lines
+
+        assert collapse_blank_lines("\n\na\nb\n\n") == "a\nb"
+
+    def test_collapse_is_idempotent(self):
+        from mtgai.validation.blank_lines import collapse_blank_lines
+
+        once = collapse_blank_lines("a\n\nb\n\n\nc")
+        assert collapse_blank_lines(once) == once
+        assert once == "a\nb\nc"
+
+    def test_single_newline_untouched(self):
+        from mtgai.validation.blank_lines import collapse_blank_lines
+
+        assert collapse_blank_lines("a\nb") == "a\nb"
+
+    def test_clean_text_not_flagged(self):
+        card = _make_card(oracle_text="Flying\nWhenever ~ attacks, draw a card.")
+        assert not any(
+            e.error_code == "rules_text.blank_lines"
+            for e in _errors_by_validator(validate_card(card), "rules_text")
+        )
+
+    def test_prenormalize_collapses_after_escape_decode(self):
+        # A literal backslash-n-backslash-n decodes to a real blank line in the
+        # escape pass, then blank_lines collapses it — both in the pre-pass.
+        from mtgai.validation.whitespace import prenormalize_card_whitespace
+
+        card = _make_card(oracle_text="Flying\\n\\nWhenever ~ attacks, draw a card.")
+        fixed, fixes = prenormalize_card_whitespace(card)
+        assert fixed.oracle_text == "Flying\nWhenever ~ attacks, draw a card."
+        assert any("whitespace.literal_escape" in f for f in fixes)
+        assert any("rules_text.blank_lines" in f for f in fixes)
+
+    def test_validate_card_from_raw_collapses_blank_line(self):
+        raw = {
+            "name": "Twilight Sparkle",
+            "mana_cost": "{2}{U}",
+            "cmc": 3.0,
+            "type_line": "Creature — Pony",
+            "oracle_text": "Flying\n\nWhenever ~ attacks, draw a card.",
+            "power": "3",
+            "toughness": "3",
+            "rarity": "rare",
+            "colors": ["U"],
+            "color_identity": ["U"],
+            "collector_number": "049",
+            "set_code": "TST",
+            "card_types": ["Creature"],
+            "subtypes": ["Pony"],
+        }
+        card, _errors, fixes, _regen = validate_card_from_raw(raw)
+        assert card.oracle_text == "Flying\nWhenever ~ attacks, draw a card."
+        assert any("rules_text.blank_lines" in f for f in fixes)
+
+    def test_fix_clean_text_returns_same_instance(self):
+        from mtgai.validation.blank_lines import fix_blank_lines
+
+        card = _make_card(oracle_text="Flying\nWhenever ~ attacks, draw a card.")
+        assert fix_blank_lines(card, _DUMMY_ERR) is card
