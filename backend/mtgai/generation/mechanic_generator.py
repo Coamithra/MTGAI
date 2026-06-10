@@ -31,7 +31,7 @@ from mtgai.generation.llm_client import generate_with_tool
 from mtgai.generation.token_budgets import HEAVY, STANDARD
 from mtgai.generation.token_utils import OutputTruncatedError
 from mtgai.io.atomic import atomic_write_text
-from mtgai.validation.whitespace import normalize_escaped_whitespace
+from mtgai.validation.whitespace import TEXT_FIELDS, normalize_escaped_whitespace
 
 # Per-mechanic streaming hook signatures. Engine path wires these to
 # ``StageEmitter.event`` (SSE), the wizard's refresh endpoints wire them to
@@ -2397,7 +2397,7 @@ def _normalize_example_card_whitespace(candidate: dict) -> dict:
             **ex,
             **{
                 field: normalize_escaped_whitespace(ex[field])
-                for field in ("oracle_text", "flavor_text")
+                for field in TEXT_FIELDS
                 if isinstance(ex.get(field), str)
             },
         }

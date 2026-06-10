@@ -106,6 +106,13 @@ def finalize_card(
     Returns:
         (finalized_card, applied_fixes, remaining_manual_errors)
     """
+    from mtgai.validation.whitespace import prenormalize_card_whitespace
+
+    # Step 0: Heal literal \n / \t escapes first — the reminder injector and
+    # the line-based validators below all derive line structure from the text,
+    # so they must see real newlines (findings are computed once, pre-fix).
+    card, ws_fixes = prenormalize_card_whitespace(card)
+
     # Step 1: Reminder text injection
     card = finalize_reminder_text(card, mechanics)
 
@@ -115,7 +122,7 @@ def finalize_card(
     # Step 3: Auto-fix
     result = auto_fix_card(card, errors)
 
-    return result.card, result.applied_fixes, result.remaining_errors
+    return result.card, ws_fixes + result.applied_fixes, result.remaining_errors
 
 
 def finalize_set(

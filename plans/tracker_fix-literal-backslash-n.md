@@ -27,20 +27,22 @@ Card 6a297bb1 — Normalize literal backslash-n from LLM output at the model bou
 - [x] (User alignment already done — design fixed in card comment)
 
 ## Phase 4: Implement
-- [ ] New AUTO check + fixer (canonical normalize function, one implementation)
-- [ ] Register early in validate_card sequence + _AUTO_FIX_REGISTRY
-- [ ] Reuse fixer from mechanics persistence path
-- [ ] Update CLAUDE.md if a documented contract changes
+- [x] New AUTO check + fixer (canonical normalize function, one implementation)
+- [x] Register early in validate_card sequence + _AUTO_FIX_REGISTRY
+- [x] Reuse fixer from mechanics persistence path
+- [x] Update CLAUDE.md (validate_card sequence + new whitespace check documented)
+- [x] Review follow-up: pre-normalize pass in validate_card_from_raw + finalize_card so
+      line-based validators compute findings on real lines; literal \r handled; TEXT_FIELDS public
 
 ## Phase 5: Verify
-- [ ] ruff check . / ruff format . clean
-- [ ] Smoke import
-- [ ] Full pytest from backend/
-- [ ] Spot-check the diff
+- [x] ruff check . / ruff format . clean
+- [x] Smoke import
+- [x] Full pytest from backend/ (2624 passed pre-review; re-run after review fixes)
+- [x] Spot-check the diff
 
 ## Phase 6: Review & Ship
-- [ ] Commit + push
-- [ ] /review (fresh-agent peer review), fix findings
+- [x] Commit + push
+- [x] /review (fresh-agent peer review), fix findings
 - [ ] Pull master into branch, re-run lint + tests
 - [ ] PR + self-merge, fast-forward root master
 - [ ] Clean up worktree + branch

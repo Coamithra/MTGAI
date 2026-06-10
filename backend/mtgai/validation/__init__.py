@@ -102,9 +102,13 @@ def validate_card(
 
     errors: list = []
 
-    # Whitespace normalization runs FIRST: auto-fixes apply in finding order,
-    # so the literal-\n fix lands before the line-based fixers (keyword
-    # ordering, line periods, overflow) re-derive line structure from the card.
+    # Whitespace check runs FIRST so its fix applies before the line-based
+    # fixers re-derive line structure. The primary heal is the pre-pass
+    # (whitespace.prenormalize_card_whitespace, run by validate_card_from_raw /
+    # finalize_card BEFORE this sequence so the line-based validators compute
+    # their findings on real lines); this in-sequence check is the diagnostic
+    # surface for auto_fix=False callers and the backstop for direct
+    # validate_card + auto_fix_card callers without the pre-pass.
     errors += validate_escaped_whitespace(card)
     errors += validate_mana_consistency(card)
     errors += validate_type_consistency(card)
@@ -138,17 +142,27 @@ def validate_card_from_raw(
       loop uses this single boolean as its regen signal.
     """
     from mtgai.validation.schema import validate_schema
+    from mtgai.validation.whitespace import prenormalize_card_whitespace
 
     card, schema_errors = validate_schema(raw)
     if card is None:
         return None, schema_errors, [], True
+
+    # Heal literal \n / \t escapes BEFORE the main validation pass: findings
+    # are computed once, so the line-based validators (keyword_ordering,
+    # rules_text line checks, text_overflow) must see real line structure —
+    # a defect hidden inside the un-normalized "one long line" would
+    # otherwise produce no finding and its fixer would never run.
+    pre_fixes: list[str] = []
+    if auto_fix:
+        card, pre_fixes = prenormalize_card_whitespace(card)
 
     all_errors = schema_errors + validate_card(card, existing_cards)
 
     if auto_fix:
         result = auto_fix_card(card, all_errors)
         regen = any(_is_regen_trigger(e) for e in result.remaining_errors)
-        return result.card, result.remaining_errors, result.applied_fixes, regen
+        return result.card, result.remaining_errors, pre_fixes + result.applied_fixes, regen
 
     regen = any(_is_regen_trigger(e) for e in all_errors)
     return card, all_errors, [], regen
