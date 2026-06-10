@@ -31,6 +31,7 @@ from mtgai.generation.llm_client import generate_with_tool
 from mtgai.generation.token_budgets import HEAVY, STANDARD
 from mtgai.generation.token_utils import OutputTruncatedError
 from mtgai.io.atomic import atomic_write_text
+from mtgai.validation.whitespace import normalize_escaped_whitespace
 
 # Per-mechanic streaming hook signatures. Engine path wires these to
 # ``StageEmitter.event`` (SSE), the wizard's refresh endpoints wire them to
@@ -2377,6 +2378,36 @@ def pick_best_mechanics(
     }
 
 
+def _normalize_example_card_whitespace(candidate: dict) -> dict:
+    r"""Return ``candidate`` with literal ``\n``/``\t`` escapes in its example
+    cards' text fields normalized to real whitespace.
+
+    Local models sometimes double-escape newlines in JSON tool output
+    (``"Flying\nSquall 3"`` with a literal backslash-n). Generated *cards* are
+    healed by the ``whitespace`` validator in ``validate_card``, but mechanic
+    example cards never pass through it, so the same canonical fix
+    (:func:`normalize_escaped_whitespace`) is applied here at the persistence
+    seam. Non-mutating: builds fresh dicts, the input is untouched.
+    """
+    examples = candidate.get("example_cards")
+    if not isinstance(examples, list):
+        return candidate
+    cleaned = [
+        {
+            **ex,
+            **{
+                field: normalize_escaped_whitespace(ex[field])
+                for field in ("oracle_text", "flavor_text")
+                if isinstance(ex.get(field), str)
+            },
+        }
+        if isinstance(ex, dict)
+        else ex
+        for ex in examples
+    ]
+    return {**candidate, "example_cards": cleaned}
+
+
 def persist_mechanic_selection(
     mech_dir: Path,
     candidates: list[dict],
@@ -2401,6 +2432,13 @@ def persist_mechanic_selection(
     to surface. Returns the projected ``approved`` list.
     """
     mech_dir.mkdir(parents=True, exist_ok=True)
+
+    # Heal double-escaped whitespace in example cards before anything is
+    # written, so candidates.json and the approved.json projected from it both
+    # store clean text (indices are preserved for ``picks``).
+    candidates = [
+        _normalize_example_card_whitespace(c) if isinstance(c, dict) else c for c in candidates
+    ]
 
     def _write(name: str, data: Any) -> None:
         atomic_write_text(mech_dir / name, json.dumps(data, indent=2, ensure_ascii=False))

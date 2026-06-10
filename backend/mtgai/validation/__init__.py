@@ -15,12 +15,15 @@ remaining text-overflow findings are returned to the caller as a single
 
 Validators owned by this module:
     1. schema         — Pydantic parse, required fields, correct types
-    2. mana           — CMC / color / color_identity consistency (AUTO-fixable)
-    3. type_check     — Creature P/T, planeswalker loyalty, aura/equipment
-    4. rules_text     — Self-reference, keyword caps, mana symbols (AUTO-fixable)
-    5. keyword_ordering — Keyword abilities above complex abilities (AUTO-fixable)
-    6. text_overflow  — Character count limits (REGEN trigger)
-    7. uniqueness     — Collector-number collision (AUTO-fixable)
+    2. whitespace     — Literal backslash-n/-t escapes from double-escaped LLM
+                        JSON (AUTO-fixable; runs first so line-based checks see
+                        real line structure)
+    3. mana           — CMC / color / color_identity consistency (AUTO-fixable)
+    4. type_check     — Creature P/T, planeswalker loyalty, aura/equipment
+    5. rules_text     — Self-reference, keyword caps, mana symbols (AUTO-fixable)
+    6. keyword_ordering — Keyword abilities above complex abilities (AUTO-fixable)
+    7. text_overflow  — Character count limits (REGEN trigger)
+    8. uniqueness     — Collector-number collision (AUTO-fixable)
 
 Design-judgment validators (consumed by analysis.heuristic_checks):
     - power_level
@@ -95,9 +98,14 @@ def validate_card(
     from mtgai.validation.text_overflow import validate_text_overflow
     from mtgai.validation.type_check import validate_type_consistency
     from mtgai.validation.uniqueness import validate_collector_number
+    from mtgai.validation.whitespace import validate_escaped_whitespace
 
     errors: list = []
 
+    # Whitespace normalization runs FIRST: auto-fixes apply in finding order,
+    # so the literal-\n fix lands before the line-based fixers (keyword
+    # ordering, line periods, overflow) re-derive line structure from the card.
+    errors += validate_escaped_whitespace(card)
     errors += validate_mana_consistency(card)
     errors += validate_type_consistency(card)
     errors += validate_rules_text(card)
@@ -226,9 +234,11 @@ def _register_auto_fixers() -> None:
         fix_type_line_order,
     )
     from mtgai.validation.uniqueness import fix_collector_number
+    from mtgai.validation.whitespace import fix_escaped_whitespace
 
     _AUTO_FIX_REGISTRY.update(
         {
+            "whitespace.literal_escape": fix_escaped_whitespace,
             "mana.invalid_format": fix_invalid_format,
             "mana.cmc_mismatch": fix_cmc,
             "mana.colors_mismatch": fix_colors,
