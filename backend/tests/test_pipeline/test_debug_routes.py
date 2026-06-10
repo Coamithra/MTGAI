@@ -138,6 +138,31 @@ def test_state_reports_stages_and_golden(client, _sandbox):
     assert data["active"] is None
 
 
+def test_state_reports_active_prefab_settings(client):
+    """``active.use_prefab_*`` reflects the open project's REAL toggles.
+
+    These are the project's settings (does the live run use prefab?), distinct
+    from the top-level ``prefab_*`` availability fields (do the assets exist on
+    disk?) — the footer reads these so it can't conflate the two.
+    """
+    from mtgai.settings.model_settings import DebugSettings, apply_settings, get_active_settings
+
+    client.post("/api/debug/quick-project", json={"set_code": "AA", "prefab": True})
+    # quick-project with prefab=True flips both toggles on.
+    on = client.get("/api/debug/state").json()
+    assert on["active"]["set_code"] == "AA"
+    assert on["active"]["use_prefab_cards"] is True
+    assert on["active"]["use_prefab_mechanics"] is True
+
+    # Flip the active project's prefab off — state must follow the SETTINGS,
+    # not prefab availability on disk.
+    settings = get_active_settings()
+    apply_settings(settings.model_copy(update={"debug": DebugSettings()}))
+    off = client.get("/api/debug/state").json()
+    assert off["active"]["use_prefab_cards"] is False
+    assert off["active"]["use_prefab_mechanics"] is False
+
+
 # ---------------------------------------------------------------------------
 # /api/debug/quick-project
 # ---------------------------------------------------------------------------
