@@ -183,6 +183,12 @@ async def debug_state() -> JSONResponse:
     The wizard's debug panel polls this on load: ``enabled`` gates the panel,
     and the rest seeds its controls (which golden sources exist, whether the
     prefab pool is populated, the stage dropdown, the active project).
+
+    Two distinct prefab signals: top-level ``prefab_cards`` / ``prefab_mechanics``
+    report *availability* (the pool exists on disk — relevant to the quick-project
+    checkbox), while ``active.use_prefab_*`` report the *active project's actual
+    settings* (whether the live run is prefab-seeded). The footer surfaces the
+    latter so it never conflates "assets exist" with "this run uses them".
     """
     from mtgai.generation import prefab
     from mtgai.pipeline.models import STAGE_DEFINITIONS
@@ -202,7 +208,17 @@ async def debug_state() -> JSONResponse:
             "active": (
                 None
                 if proj is None
-                else {"set_code": proj.set_code, "asset_folder": proj.settings.asset_folder}
+                else {
+                    "set_code": proj.set_code,
+                    "asset_folder": proj.settings.asset_folder,
+                    # The ACTIVE project's real prefab toggles — distinct from the
+                    # ``prefab_*`` availability fields above (which only report that
+                    # the pool exists on disk). The footer reads these so it never
+                    # implies a live run is prefab-seeded when its settings say it
+                    # isn't.
+                    "use_prefab_cards": proj.settings.debug.use_prefab_cards,
+                    "use_prefab_mechanics": proj.settings.debug.use_prefab_mechanics,
+                }
             ),
         }
     )

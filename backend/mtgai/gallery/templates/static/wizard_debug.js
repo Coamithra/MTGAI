@@ -89,10 +89,19 @@
       } catch (e) { setStatus('Quick project: ' + e.message, true); }
       finally { qpBtn.disabled = false; }
     };
+    // "prefab assets exist on disk" — distinct from the active project's actual
+    // use_prefab_* settings (shown in the footer). Placed here, next to the
+    // quick-project prefab checkbox, where availability is what's relevant.
+    const qpAvail = el('div', {
+      text:
+        'prefab assets: cards ' + (state.prefab_cards ? 'available' : 'missing') +
+        ', mech ' + (state.prefab_mechanics ? 'available' : 'missing'),
+      style: 'font-size:10px;opacity:.6;',
+    });
     body.appendChild(section('Quick project (no picker)', [
       row([labelled('code', qpCode), labelled('size', qpSize)]),
       row([labelled('prefab cards/mechanics', qpPrefab)]),
-      qpTheme, qpBtn,
+      qpAvail, qpTheme, qpBtn,
     ]));
 
     // --- Seed to stage --------------------------------------------------
@@ -144,11 +153,18 @@
     body.appendChild(section('Open / Save', [openInput, openBtn, saveBtn]));
 
     // --- Status + meta --------------------------------------------------
+    // The footer reports the ACTIVE project's real use_prefab_* settings (does
+    // the live run actually use prefab?), NOT prefab availability on disk (which
+    // lives near the quick-project checkbox above). They are different signals.
     const meta = el('div', { style: 'font-size:11px;opacity:.7;' });
-    meta.textContent =
-      'active: ' + (state.active ? state.active.set_code || '(unnamed)' : 'none') +
-      ' · prefab cards:' + (state.prefab_cards ? '✓' : '✗') +
-      ' mech:' + (state.prefab_mechanics ? '✓' : '✗');
+    if (state.active) {
+      meta.textContent =
+        'active: ' + (state.active.set_code || '(unnamed)') +
+        ' · uses prefab cards:' + (state.active.use_prefab_cards ? '✓' : '✗') +
+        ' mech:' + (state.active.use_prefab_mechanics ? '✓' : '✗');
+    } else {
+      meta.textContent = 'active: none';
+    }
     body.appendChild(meta);
     body.appendChild(el('div', { id: 'qa-debug-status', style: 'font-size:11px;min-height:14px;color:#7CFC9B;' }));
 
