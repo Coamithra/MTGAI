@@ -460,6 +460,13 @@ def serve(
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
         datefmt="%H:%M:%S",
     )
+    # The tok/s telemetry poller (generation/phase_poller.py) hits llama-server's
+    # /slots ~2x/sec via httpx, and httpx logs an INFO "HTTP Request: ... 200 OK"
+    # line per poll — tens of thousands of lines over an hours-long set run that
+    # bury real WARN/INFO signal. Silence httpx/httpcore to WARNING; no MTGAI code
+    # relies on their INFO request lines (llmfacade has its own transcript logging).
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
     # Supervised mode: this process becomes the outer supervisor and spawns the
     # *real* server (plain `serve`) as a child, restarting it on a silent crash.
