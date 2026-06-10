@@ -83,6 +83,26 @@ def _write_review(asset_dir: Path, collector_number: str, verdict: str, issues=N
     (reviews / f"{collector_number}.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
+def _live_card_dict(asset_dir: Path, cn: str) -> dict:
+    """The current on-disk card body for collector number ``cn``."""
+    path = next((asset_dir / "cards").glob(f"{cn}_*.json"))
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _record_reviewed(asset_dir: Path, cn: str, card: dict | None = None) -> None:
+    """Stamp ``reviewed.json`` with the signature a card was reviewed under.
+
+    Mirrors ``ai_review.record_reviewed``: by default it records the signature of
+    the card's *current* on-disk body (the common "just reviewed it" case), so a
+    later body rewrite makes the persisted verdict stale.
+    """
+    from mtgai.review.ai_review import card_signature, record_reviewed
+
+    if card is None:
+        card = _live_card_dict(asset_dir, cn)
+    record_reviewed(asset_dir, cn, card_signature(card))
+
+
 # ---------------------------------------------------------------------------
 # GET /api/wizard/ai_review/state
 # ---------------------------------------------------------------------------
@@ -137,6 +157,7 @@ def test_state_merges_cards_reviews_and_effective_stamp(client, isolated_output,
         "approved": 1,
         "rejected": 1,
         "pending": 1,
+        "upstream_flagged": 0,
         "total": 3,
     }
 
@@ -282,8 +303,10 @@ def test_stale_approve_does_not_override_fresh_regen_flag(client, isolated_outpu
         t["collector_number"]: t for t in client.get("/api/wizard/ai_review/state").json()["cards"]
     }["W-C-02"]
     # The stale approval no longer wins; the fresh flagged state surfaces instead.
-    assert tile["effective"]["verdict"] == "rejected"
-    assert tile["effective"]["source"] == "ai"
+    # The flag is from conformance (an upstream gate) with no design REVISE, so it
+    # surfaces as an accepted-upstream chip, not a design-review rejection.
+    assert tile["effective"]["verdict"] == "flagged_upstream"
+    assert tile["effective"]["source"] == "conformance"
     assert "too strong" in tile["effective"]["reason"]
 
 
@@ -311,8 +334,10 @@ def test_reflag_overrides_approval_even_when_body_unchanged(client, isolated_out
     tile = {
         t["collector_number"]: t for t in client.get("/api/wizard/ai_review/state").json()["cards"]
     }["W-C-02"]
-    assert tile["effective"]["verdict"] == "rejected"
-    assert tile["effective"]["source"] == "ai"
+    # The re-flag overrides the approval; conformance + no design REVISE → the
+    # accepted-upstream chip, not a red-X rejection.
+    assert tile["effective"]["verdict"] == "flagged_upstream"
+    assert tile["effective"]["source"] == "conformance"
     assert "combo enabler" in tile["effective"]["reason"]
 
 
@@ -367,6 +392,185 @@ def test_decision_on_unchanged_card_still_applies(client, isolated_output, tmp_p
     # Body unchanged -> the user's approval still overrides the AI REVISE.
     assert tile["effective"]["verdict"] == "approved"
     assert tile["effective"]["source"] == "user"
+
+
+# ---------------------------------------------------------------------------
+# AI-verdict staleness across a regen (card 6a29a27f): a persisted review whose
+# recorded signature no longer matches the live card belongs to the archived
+# pre-regen body — the tab must reset such a card to "to review", not paint the
+# old verdict's rejected/approved stamp onto the fresh body.
+# ---------------------------------------------------------------------------
+
+
+def test_regenerated_card_with_stale_review_resets_to_pending(client, isolated_output, tmp_path):
+    """An inserted ai_review.N instance: a regenerated card drops its stale verdict.
+
+    The card was reviewed OK (reviewed.json records the OLD signature), then the
+    slot bounced to card_gen and got a fresh body. The persisted OK verdict is now
+    stale, so the tab shows the card as not-yet-reviewed (bare/to-review), and it
+    counts as pending — never approved off the archived body.
+    """
+    asset = tmp_path / "asset"
+    _seed_project(asset)
+    _write_card(asset, collector_number="W-C-02", name="Bear", oracle_text="Draw a card.")
+    _write_review(asset, "W-C-02", "OK")
+    _record_reviewed(asset, "W-C-02")  # signature of the OLD body
+
+    # A later round regenerates the slot into a new body (no re-review yet).
+    _rewrite_card_body(asset, "W-C-02", oracle_text="Draw three cards.")
+
+    tile = {
+        t["collector_number"]: t for t in client.get("/api/wizard/ai_review/state").json()["cards"]
+    }["W-C-02"]
+    assert tile["reviewed"] is False
+    assert tile["effective"]["verdict"] == "pending"
+    assert tile.get("card_was_changed") in (False, None)
+
+    summary = client.get("/api/wizard/ai_review/state").json()["summary"]
+    assert summary["pending"] == 1
+    assert summary["approved"] == 0
+    assert summary["rejected"] == 0
+
+
+def test_reviewed_signature_match_keeps_verdict(client, isolated_output, tmp_path):
+    """A review whose recorded signature still matches the live body stays valid."""
+    asset = tmp_path / "asset"
+    _seed_project(asset)
+    _write_card(asset, collector_number="W-C-02", name="Bear", oracle_text="Draw a card.")
+    _write_review(asset, "W-C-02", "OK")
+    _record_reviewed(asset, "W-C-02")  # signature of the CURRENT body (unchanged)
+
+    tile = {
+        t["collector_number"]: t for t in client.get("/api/wizard/ai_review/state").json()["cards"]
+    }["W-C-02"]
+    assert tile["reviewed"] is True
+    assert tile["effective"]["verdict"] == "approved"
+
+
+def test_legacy_review_without_recorded_signature_still_shows_verdict(
+    client, isolated_output, tmp_path
+):
+    """Back-compat: a pre-tracking project (no reviewed.json) keeps its verdict."""
+    asset = tmp_path / "asset"
+    _seed_project(asset)
+    _write_card(asset, collector_number="W-C-02", name="Bear", oracle_text="Draw a card.")
+    _write_review(asset, "W-C-02", "OK")
+    # No reviewed.json at all — nothing to compare, so the verdict is never stale.
+
+    tile = {
+        t["collector_number"]: t for t in client.get("/api/wizard/ai_review/state").json()["cards"]
+    }["W-C-02"]
+    assert tile["reviewed"] is True
+    assert tile["effective"]["verdict"] == "approved"
+
+
+# ---------------------------------------------------------------------------
+# Safety-valve misbranding (card 6a29a27f): a card carrying an accepted UPSTREAM
+# conformance flag (the council passed it) must render as an amber informational
+# chip, NOT a red-X design-review rejection.
+# ---------------------------------------------------------------------------
+
+
+def test_conformance_accepted_flag_renders_as_upstream_not_rejected(
+    client, isolated_output, tmp_path
+):
+    asset = tmp_path / "asset"
+    _seed_project(asset)
+    _write_card(
+        asset,
+        collector_number="W-C-02",
+        name="Bear",
+        oracle_text="Draw a card.",
+        regen_reason="SPEC wants CMC6, but card is CMC5",
+        flagged_by="conformance",
+    )
+    # The design council reviewed it OK (the safety-valve survivor passed review).
+    _write_review(asset, "W-C-02", "OK")
+    _record_reviewed(asset, "W-C-02")
+
+    body = client.get("/api/wizard/ai_review/state").json()
+    tile = {t["collector_number"]: t for t in body["cards"]}["W-C-02"]
+    assert tile["effective"]["verdict"] == "flagged_upstream"
+    assert tile["effective"]["gate"] == "conformance"
+    assert "CMC6" in tile["effective"]["reason"]
+    assert body["summary"]["upstream_flagged"] == 1
+    assert body["summary"]["rejected"] == 0
+
+
+def test_conformance_flag_without_review_is_upstream_not_rejected(
+    client, isolated_output, tmp_path
+):
+    """A conformance-flagged card the design council hasn't (re-)reviewed yet.
+
+    Absent an ai_review REVISE verdict, an unresolved conformance flag is still an
+    accepted upstream flag, not a design rejection.
+    """
+    asset = tmp_path / "asset"
+    _seed_project(asset)
+    _write_card(
+        asset,
+        collector_number="W-C-02",
+        name="Bear",
+        oracle_text="Draw a card.",
+        regen_reason="duplicate of W-C-01",
+        flagged_by="conformance",
+    )
+
+    tile = {
+        t["collector_number"]: t for t in client.get("/api/wizard/ai_review/state").json()["cards"]
+    }["W-C-02"]
+    assert tile["effective"]["verdict"] == "flagged_upstream"
+    assert tile["effective"]["gate"] == "conformance"
+
+
+def test_ai_review_flag_still_rejected(client, isolated_output, tmp_path):
+    """A flag from THIS stage (flagged_by=ai_review) is a genuine design rejection."""
+    asset = tmp_path / "asset"
+    _seed_project(asset)
+    _write_card(
+        asset,
+        collector_number="W-C-02",
+        name="Bear",
+        oracle_text="Draw a card.",
+        regen_reason="above rate",
+        flagged_by="ai_review",
+    )
+
+    tile = {
+        t["collector_number"]: t for t in client.get("/api/wizard/ai_review/state").json()["cards"]
+    }["W-C-02"]
+    assert tile["effective"]["verdict"] == "rejected"
+    assert tile["effective"]["gate"] == "ai_review"
+
+
+def test_conformance_flag_with_revise_verdict_is_rejected(client, isolated_output, tmp_path):
+    """A conformance-flagged card the design council ALSO voted REVISE on is rejected.
+
+    When this stage's own verdict is REVISE, it's a genuine design rejection
+    regardless of the upstream gate label.
+    """
+    asset = tmp_path / "asset"
+    _seed_project(asset)
+    _write_card(
+        asset,
+        collector_number="W-C-02",
+        name="Bear",
+        oracle_text="Draw a card.",
+        regen_reason="SPEC wants CMC6, but card is CMC5",
+        flagged_by="conformance",
+    )
+    _write_review(
+        asset,
+        "W-C-02",
+        "REVISE",
+        issues=[{"severity": "FAIL", "category": "design", "description": "kitchen sink"}],
+    )
+    _record_reviewed(asset, "W-C-02")
+
+    tile = {
+        t["collector_number"]: t for t in client.get("/api/wizard/ai_review/state").json()["cards"]
+    }["W-C-02"]
+    assert tile["effective"]["verdict"] == "rejected"
 
 
 # ---------------------------------------------------------------------------

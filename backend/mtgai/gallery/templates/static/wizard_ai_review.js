@@ -10,7 +10,12 @@
  *  - The full set of reviewable cards as tiles, distinguishing reviewed cards
  *    (a green ✓ "approved" stamp or a red ✗ "rejected" stamp + reddened tile +
  *    a short rejection reason) from to-be-reviewed cards (a muted "to review"
- *    tag, dimmed).
+ *    tag, dimmed). A card carrying an accepted UPSTREAM conformance flag (the
+ *    safety-valve survivor — the design council passed it) gets an amber ⚑
+ *    "conformance flag (accepted)" chip, NOT a red-X design rejection.
+ *  - A regenerated card whose persisted verdict belongs to its now-archived old
+ *    body resets to the bare "to review" presentation until the new round
+ *    verdicts the new body (server drops the stale review via card_signature).
  *  - A live council panel while a card is under review — 👍/👎 thumbs per
  *    reviewer, round by round, mirroring the mechanics council.
  *  - A "✎ Tweaked by AI" mark on any card the review revised in place, with
@@ -89,6 +94,7 @@
       }
       .wiz-ar-card.approved { border-color: #2e7d52; }
       .wiz-ar-card.rejected { border-color: #8a3030; background: #1d1012; }
+      .wiz-ar-card.flagged_upstream { border-color: #8a6d20; background: #1a1608; }
       .wiz-ar-card.pending { opacity: 0.72; }
       .wiz-ar-card.reviewing { border-color: #58a6ff; }
       /* Corner stamp */
@@ -99,6 +105,7 @@
       }
       .wiz-ar-stamp.approved { background: #0d3320; color: #4ade80; border: 1px solid #2e7d52; }
       .wiz-ar-stamp.rejected { background: #3a0c0c; color: #f87171; border: 1px solid #8a3030; }
+      .wiz-ar-stamp.flagged_upstream { background: #2a2200; color: #fbbf24; border: 1px solid #8a6d20; }
       .wiz-ar-card-name { font-weight: 700; font-size: 0.86rem; color: #e0e0e0; line-height: 1.2; padding-right: 1.8rem; }
       .wiz-ar-card-cost { font-size: 0.74rem; color: #aaa; font-family: monospace; }
       .wiz-ar-card-type { font-size: 0.72rem; color: #8b949e; border-bottom: 1px solid #1a2540; padding-bottom: 0.22rem; }
@@ -121,6 +128,19 @@
       .wiz-ar-reject { display: flex; flex-direction: column; gap: 0.18rem; margin-top: 0.1rem; }
       .wiz-ar-reject-reason {
         font-size: 0.72rem; color: #f8b4b4; background: #3a0c0c40; border-left: 2px solid #8a3030;
+        padding: 0.3rem 0.45rem; border-radius: 0 4px 4px 0; line-height: 1.35; white-space: pre-wrap;
+      }
+      /* Accepted upstream (conformance) flag — informational amber chip, NOT a
+         design-review rejection. The council voted OK; this flag survived the
+         conformance gate's budget exhaustion and is carried for transparency. */
+      .wiz-ar-upstream { display: flex; flex-direction: column; gap: 0.18rem; margin-top: 0.1rem; }
+      .wiz-ar-upstream-chip {
+        font-size: 0.62rem; font-weight: 700; color: #fbbf24; align-self: flex-start;
+        background: #2a2200; border: 1px solid #8a6d20; border-radius: 3px;
+        padding: 0.1rem 0.42rem; display: inline-flex; align-items: center; gap: 0.28rem;
+      }
+      .wiz-ar-upstream-reason {
+        font-size: 0.72rem; color: #f0d68a; background: #2a220040; border-left: 2px solid #8a6d20;
         padding: 0.3rem 0.45rem; border-radius: 0 4px 4px 0; line-height: 1.35; white-space: pre-wrap;
       }
       /* Issues list (collapsible details) */
@@ -391,7 +411,11 @@
     const approved = s.approved != null ? s.approved : count(local, 'approved');
     const rejected = s.rejected != null ? s.rejected : count(local, 'rejected');
     const pending = s.pending != null ? s.pending : count(local, 'pending');
+    const upstream = s.upstream_flagged != null ? s.upstream_flagged : count(local, 'flagged_upstream');
     const revised = s.revised != null ? s.revised : local.cards.filter((t) => t.card_was_changed).length;
+    const upstreamStat = upstream > 0
+      ? `<span class="wiz-ar-stat"><strong>${escHtml(String(upstream))}</strong> upstream flag${upstream !== 1 ? 's' : ''}</span>`
+      : '';
     slot.innerHTML = `
       <div class="wiz-theme-section-header-row">
         <h3 style="margin:0">Review results</h3>
@@ -401,6 +425,7 @@
         <span class="wiz-ar-stat"><strong>${escHtml(String(total))}</strong> cards</span>
         <span class="wiz-ar-stat"><strong>${escHtml(String(approved))}</strong> approved</span>
         <span class="wiz-ar-stat"><strong>${escHtml(String(rejected))}</strong> rejected</span>
+        ${upstreamStat}
         <span class="wiz-ar-stat"><strong>${escHtml(String(pending))}</strong> to review</span>
         <span class="wiz-ar-stat"><strong>${escHtml(String(revised))}</strong> revised by AI</span>
       </div>
@@ -421,6 +446,10 @@
       { id: 'rejected', label: 'Rejected' },
       { id: 'pending', label: 'To review' },
     ];
+    // Only offer the upstream-flag filter when there are such cards to show.
+    if (local.cards.some((t) => effective(t).verdict === 'flagged_upstream')) {
+      filters.push({ id: 'flagged_upstream', label: 'Flagged upstream' });
+    }
     slot.innerHTML = filters
       .map((f) => `<button type="button" class="wiz-ar-filter-btn${local.filter === f.id ? ' active' : ''}" data-filter="${escAttr(f.id)}">${escHtml(f.label)}</button>`)
       .join('');
@@ -492,16 +521,18 @@
     }
   }
 
-  // 0 reviewing (live) · 1 to-review · 2 rejected · 3 approved. 0–2 all need the
-  // user's attention (a rejected card is flagged for regen); only 3 (approved)
-  // is the passive carry-over.
+  // 0 reviewing (live) · 1 to-review · 2 rejected · 3 upstream-flagged · 4 approved.
+  // 0–2 need the user's attention (a rejected card is flagged for regen);
+  // upstream-flagged (an accepted conformance flag) is informational, so it sits
+  // just above the passive approved carry-over.
   function sortPriority(tile, local) {
     const cn = tile.collector_number || '';
     if (local.reviewing.has(cn)) return 0;
     const v = effective(tile).verdict;
     if (v === 'pending') return 1;
     if (v === 'rejected') return 2;
-    return 3;
+    if (v === 'flagged_upstream') return 3;
+    return 4;
   }
 
   function cnCompare(a, b) {
@@ -517,7 +548,7 @@
     const parts = [];
     let dividerDropped = false;
     ranked.forEach(({ tile, prio }) => {
-      if (local.filter === 'all' && !dividerDropped && prio >= 3 && parts.length > 0) {
+      if (local.filter === 'all' && !dividerDropped && prio >= 4 && parts.length > 0) {
         parts.push('<div class="wiz-ar-divider">Approved</div>');
         dividerDropped = true;
       }
@@ -540,6 +571,13 @@
     return { verdict: 'rejected', reason };
   }
 
+  // Human-readable name for the gate that raised an accepted upstream flag.
+  function gateLabel(gate) {
+    if (gate === 'conformance') return 'Conformance';
+    if (gate === 'interactions') return 'Interactions';
+    return gate ? gate.charAt(0).toUpperCase() + gate.slice(1) : 'Upstream';
+  }
+
   function tileHtml(tile, local) {
     const cn = tile.collector_number || '';
     const eff = effective(tile);
@@ -553,7 +591,9 @@
       ? '<span class="wiz-ar-stamp approved" title="Approved">✓</span>'
       : verdict === 'rejected'
         ? '<span class="wiz-ar-stamp rejected" title="Rejected">✗</span>'
-        : '';
+        : verdict === 'flagged_upstream'
+          ? '<span class="wiz-ar-stamp flagged_upstream" title="Accepted upstream flag">⚑</span>'
+          : '';
 
     const reviewingBadge = reviewing ? '<span class="wiz-ar-reviewing-badge">Reviewing…</span>' : '';
     const councilPanel = reviewing ? councilPanelHtml(local.council[cn]) : '';
@@ -562,6 +602,14 @@
       ? `<div class="wiz-ar-reject">
            <div class="wiz-ar-reject-label">Why rejected</div>
            <div class="wiz-ar-reject-reason">${escHtml(eff.reason)}</div>
+         </div>` : '';
+    // Accepted upstream (conformance) flag: an amber informational chip naming
+    // the flagging gate, NOT a red-X design rejection (the council voted OK; this
+    // safety-valve survivor is "NOT a quality bar").
+    const upstreamFlag = (verdict === 'flagged_upstream')
+      ? `<div class="wiz-ar-upstream">
+           <span class="wiz-ar-upstream-chip" title="Carries an unresolved ${escAttr(eff.gate || 'conformance')} flag the gate accepted at budget exhaustion — the design council passed this card">⚑ ${escHtml(gateLabel(eff.gate))} flag (accepted)</span>
+           ${eff.reason ? `<div class="wiz-ar-upstream-reason">${escHtml(eff.reason)}</div>` : ''}
          </div>` : '';
 
     const issues = Array.isArray(tile.issues) ? tile.issues : [];
@@ -593,6 +641,7 @@
         ${councilPanel}
         ${pendingTag}
         ${rejectReason}
+        ${upstreamFlag}
         ${issuesBlock}
         ${tweakBlock}
         ${menu}

@@ -2007,6 +2007,26 @@ def decision_is_stale(decision: dict | None, card: dict | None) -> bool:
     return recorded != card_signature(card)
 
 
+def review_is_stale(reviewed_sig: str | None, card: dict | None) -> bool:
+    """True when a card's persisted AI verdict was made against a now-stale body.
+
+    ``reviews/<cn>.json`` is keyed by collector number and merged content-blind,
+    so after a regen bounce rewrites the slot's body the persisted verdict (red-X
+    rejection, "tweaked by AI" diff, …) still belongs to the *archived* old card.
+    The ``reviewed.json`` sidecar records the ``card_signature`` each card was
+    reviewed under (see :func:`record_reviewed`), so a recorded signature that no
+    longer matches the live card means the verdict is stale and the card should
+    read as not-yet-reviewed until the new round verdicts the new body.
+
+    The AI-verdict twin of :func:`decision_is_stale`. A card with NO recorded
+    signature (legacy / pre-tracking project) is never treated as stale — there's
+    nothing to compare, so the persisted verdict keeps its old precedence.
+    """
+    if not reviewed_sig or card is None:
+        return False
+    return reviewed_sig != card_signature(card)
+
+
 def clear_decision(set_dir: Path, collector_number: str) -> None:
     """Drop a card's user decision (e.g. it was re-flagged), if present."""
     decisions = load_decisions(set_dir)
