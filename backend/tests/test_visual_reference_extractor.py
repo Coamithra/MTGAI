@@ -33,14 +33,10 @@ def _theme_fixture() -> dict:
         "special_constraints": [
             {"text": "Firearms are sculpted with ceremonial insignia."},
         ],
-        "legendary_characters": [
-            {
-                "name": "Feretha, the Hollow Founder",
-                "colors": ["U", "B"],
-                "role": "Dead wizard-ruler hooked to a machine.",
-                "type": "Legendary Creature — Human Wizard",
-            },
-        ],
+        "setting": (
+            "# Notable Characters\n\n"
+            "Feretha, the Hollow Founder: Dead wizard-ruler hooked to a machine."
+        ),
     }
 
 
@@ -90,8 +86,8 @@ def test_build_visual_reference_prompts_substitutes_fields() -> None:
 
     assert "Dead Gods" in sys_prompt
     assert "Medieval scavengers" in sys_prompt
-    assert "crumbling concrete megastructure" in sys_prompt
-    # Named characters thread into the characters block.
+    # Named characters reach the prompt via the setting prose (the single
+    # source — the old structured-anchor block is gone).
     assert "Feretha, the Hollow Founder" in sys_prompt
     # Only setting-specific creature types are surfaced, not standard MTG ones.
     assert "Moktar" in sys_prompt and "Automaton" in sys_prompt
@@ -109,8 +105,7 @@ def test_build_visual_reference_prompts_handles_missing_blocks() -> None:
     )
     assert "Bare bones theme." in sys_prompt
     assert "(unnamed set)" in sys_prompt
-    # Optional blocks fall back to placeholders, not KeyError.
-    assert "no structured named characters" in sys_prompt
+    # The creature-types block falls back to its placeholder, not KeyError.
     assert "none called out" in sys_prompt
 
 
@@ -125,16 +120,6 @@ def test_build_visual_reference_prompts_surfaces_full_setting_prose() -> None:
     sys_prompt, _user = vre.build_visual_reference_prompts(theme=theme, set_name="X")
     assert "Iron Choir" in sys_prompt
     assert "ignored when setting is present" not in sys_prompt
-
-
-def test_notable_cards_block_threads_anchors() -> None:
-    theme = {
-        "notable_cards": [
-            {"name": "Fereyn's Stone Head", "type": "Legendary Artifact", "notes": "flying head"},
-        ]
-    }
-    block = vre._format_notable_cards_block(theme)
-    assert "Fereyn's Stone Head" in block and "flying head" in block
 
 
 def test_creature_types_block_accepts_flat_list() -> None:
@@ -265,6 +250,32 @@ def test_generate_visual_references_returns_assembled(_project, monkeypatch) -> 
     assert refs["flux_term_replacements"]["moktar"] == "tawny-furred lion-headed humanoid"
     assert result["input_tokens"] == 11
     assert result["output_tokens"] == 22
+    # Completeness check: the fixture's lone prose character (Feretha) is
+    # produced, so nothing is dropped.
+    assert result["dropped_entities"] == []
+
+
+def test_generate_visual_references_flags_dropped_prose_entity(_project, monkeypatch) -> None:
+    # The setting prose names two characters but the model only produced one →
+    # the second must surface in ``dropped_entities`` (the live Applejack case).
+    from mtgai.io.asset_paths import set_artifact_dir
+
+    theme = _theme_fixture()
+    theme["setting"] = (
+        "# Notable Characters\n\n"
+        "Feretha, the Hollow Founder: dead wizard-ruler.\n"
+        "Applejack: a diligent earth-toned raider."
+    )
+    (set_artifact_dir() / "theme.json").write_text(json.dumps(theme), encoding="utf-8")
+    monkeypatch.setattr(
+        vre,
+        "generate_with_tool",
+        _stub_generate_with_tool(_entities_fixture(), []),  # produces only "feretha"
+    )
+    result = vre.generate_visual_references()
+    dropped = result["dropped_entities"]
+    assert [d["name"] for d in dropped] == ["Applejack"]
+    assert dropped[0]["section"] == "Notable Characters"
 
 
 def test_generate_visual_references_routes_log_dir(_project, monkeypatch) -> None:
@@ -292,6 +303,93 @@ def test_generate_visual_references_raises_when_empty(_project, monkeypatch) -> 
     )
     with pytest.raises(RuntimeError, match="no usable entities"):
         vre.generate_visual_references()
+
+
+# ---------------------------------------------------------------------------
+# Prose-section parsing + completeness check
+# ---------------------------------------------------------------------------
+
+
+def test_parse_prose_entities_reads_name_before_colon() -> None:
+    setting = (
+        "# World Overview\n\nA grim place.\n\n"
+        "# Notable Characters\n\n"
+        "Twilight Sparkle: A studious unicorn.\n"
+        "Princess Celestia: The ruler of Equestria.\n\n"
+        "# Landmarks\n\n"
+        "Ponyville: A fairy-tale town.\n"
+    )
+    parsed = vre.parse_prose_entities(setting)
+    assert parsed["Notable Characters"] == ["Twilight Sparkle", "Princess Celestia"]
+    assert parsed["Landmarks"] == ["Ponyville"]
+
+
+def test_parse_prose_entities_handles_bare_and_parenthetical_names() -> None:
+    setting = (
+        "# Notable Characters\n\n"
+        "Optimus Prime: heroic leader.\n"
+        "Rodimus Prime (formerly Hot Rod): the successor.\n"
+        "Shockwave\n"  # bare line, no colon
+    )
+    names = vre.parse_prose_entities(setting)["Notable Characters"]
+    # Bare name kept; trailing parenthetical alias stripped from the name.
+    assert names == ["Optimus Prime", "Rodimus Prime", "Shockwave"]
+
+
+def test_parse_prose_entities_skips_placeholder_and_dedupes() -> None:
+    setting = (
+        "# Factions\n\nNo information found in this portion.\n\n"
+        "# Landmarks\n\nCybertron: home planet.\ncybertron: dup.\n"
+    )
+    parsed = vre.parse_prose_entities(setting)
+    # Placeholder section yields no entry; the section drops its dup.
+    assert "Factions" not in parsed
+    assert parsed["Landmarks"] == ["Cybertron"]
+
+
+def test_parse_prose_entities_empty_or_missing_sections() -> None:
+    assert vre.parse_prose_entities("") == {}
+    assert vre.parse_prose_entities("# World Overview\n\nNo entity sections here.") == {}
+
+
+def test_find_dropped_entities_all_covered() -> None:
+    setting = "# Notable Characters\n\nKalak: old king.\nMoktar: lion-headed."
+    refs = {
+        "legendary_characters": {"kalak": "x", "moktar": "y"},
+        "creature_types": {},
+        "factions": {},
+        "landmarks": {},
+    }
+    assert vre.find_dropped_entities(setting, refs) == []
+
+
+def test_find_dropped_entities_reports_missing() -> None:
+    setting = "# Notable Characters\n\nKalak: old king.\nApplejack: a raider."
+    refs = {
+        "legendary_characters": {"kalak": "x"},
+        "creature_types": {},
+        "factions": {},
+        "landmarks": {},
+    }
+    dropped = vre.find_dropped_entities(setting, refs)
+    assert dropped == [{"name": "Applejack", "section": "Notable Characters"}]
+
+
+def test_find_dropped_entities_titled_name_matches_short_key() -> None:
+    # A prose name carrying a title is covered by its short dict key, and a
+    # similar-but-distinct name is NOT spuriously covered.
+    setting = (
+        "# Notable Characters\n\nFeretha, the Hollow Founder: dead wizard.\n\n"
+        "# Factions\n\nFerethan Order: masked monks."
+    )
+    refs = {
+        "legendary_characters": {"feretha": "x"},
+        "creature_types": {},
+        "factions": {},
+        "landmarks": {},
+    }
+    dropped = vre.find_dropped_entities(setting, refs)
+    assert dropped == [{"name": "Ferethan Order", "section": "Factions"}]
 
 
 # ---------------------------------------------------------------------------

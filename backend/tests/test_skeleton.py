@@ -28,7 +28,6 @@ from mtgai.skeleton.generator import (
     _apply_reservations,
     _assign_cmcs,
     _assign_mechanic_tags,
-    _card_type_from_type_line,
     _check_color_balance,
     _check_creature_density,
     _check_rarity_totals,
@@ -1018,27 +1017,6 @@ def _slot(
     )
 
 
-class TestCardTypeFromTypeLine:
-    """_card_type_from_type_line scans a full type line for the slot type."""
-
-    def test_creature(self):
-        assert _card_type_from_type_line("Legendary Creature — Human Wizard") == "creature"
-
-    def test_artifact(self):
-        assert _card_type_from_type_line("Legendary Artifact — Vehicle") == "artifact"
-
-    def test_artifact_creature_prefers_creature(self):
-        # Creature is scanned before artifact, so artifact creatures map to creature.
-        assert _card_type_from_type_line("Artifact Creature — Golem") == "creature"
-
-    def test_planeswalker(self):
-        assert _card_type_from_type_line("Legendary Planeswalker — Jace") == "planeswalker"
-
-    def test_unknown_returns_none(self):
-        assert _card_type_from_type_line("Tribal Whatsit") is None
-        assert _card_type_from_type_line(None) is None
-
-
 class TestSplitRequest:
     """_split_request peels a name off a prose 'Name — description'."""
 
@@ -1056,52 +1034,29 @@ class TestSplitRequest:
 
 
 class TestBuildReservedSlots:
-    """build_reserved_slots turns theme.json anchors into ReservedSlotSpecs."""
+    """build_reserved_slots turns theme.json card_requests into ReservedSlotSpecs.
 
-    def test_legendary_characters_full_spec(self):
-        theme = {
-            "legendary_characters": [
-                {
-                    "name": "Feretha, the Undying",
-                    "colors": ["U", "B"],
-                    "role": "Dead wizard-ruler",
-                    "rarity": "mythic",
-                    "type": "Legendary Creature — Human Wizard",
-                }
-            ]
-        }
-        specs = build_reserved_slots(theme)
-        assert len(specs) == 1
-        spec = specs[0]
-        assert spec.name == "Feretha, the Undying"
-        assert spec.colors == ["U", "B"]
-        assert spec.rarity == "mythic"
-        assert spec.card_type == "creature"
-        assert spec.description == "Dead wizard-ruler"
-
-    def test_notable_cards_colorless_artifact(self):
-        theme = {
-            "notable_cards": [
-                {
-                    "name": "Fereyn's Stone Head",
-                    "type": "Legendary Artifact — Vehicle",
-                    "colors": [],
-                    "notes": "Detachable flying vehicle.",
-                }
-            ]
-        }
-        specs = build_reserved_slots(theme)
-        assert specs[0].card_type == "artifact"
-        assert specs[0].colors == []
-        assert specs[0].description == "Detachable flying vehicle."
+    card_requests is the single reserved-slot source — the old structured
+    legendary_characters / notable_cards anchor fields are gone (nothing ever
+    populated them); a legacy theme.json still carrying them must be tolerated
+    (ignored), not crash.
+    """
 
     def test_card_requests_prose_strings(self):
         theme = {"card_requests": ["Throne of Glass — a powerful relic"]}
         specs = build_reserved_slots(theme)
+        assert len(specs) == 1
         assert specs[0].name == "Throne of Glass"
         assert specs[0].description == "a powerful relic"
+        assert specs[0].colors == []
         assert specs[0].rarity is None
         assert specs[0].card_type is None
+
+    def test_card_requests_colon_separator(self):
+        theme = {"card_requests": ["Stone Head: flying vehicle"]}
+        specs = build_reserved_slots(theme)
+        assert specs[0].name == "Stone Head"
+        assert specs[0].description == "flying vehicle"
 
     def test_card_requests_provenance_objects(self):
         theme = {"card_requests": [{"text": "Relic — a thing", "source": "ai"}]}
@@ -1109,25 +1064,30 @@ class TestBuildReservedSlots:
         assert specs[0].name == "Relic"
 
     def test_dedupes_by_name_case_insensitive(self):
+        theme = {"card_requests": ["Feretha — first", "feretha — duplicate prose"]}
+        specs = build_reserved_slots(theme)
+        # First occurrence of a name wins; the case-insensitive duplicate drops.
+        assert len(specs) == 1
+        assert specs[0].description == "first"
+
+    def test_legacy_anchor_fields_are_ignored(self):
+        # A legacy theme.json may still carry the removed anchor fields; they
+        # must be silently ignored (only card_requests produces specs), not
+        # crash the loader.
         theme = {
-            "legendary_characters": [
-                {"name": "Feretha", "colors": ["U"], "rarity": "rare", "type": "Creature"}
-            ],
-            "card_requests": ["feretha — duplicate prose"],
+            "legendary_characters": [{"name": "Feretha", "colors": ["U", "B"], "rarity": "mythic"}],
+            "notable_cards": [{"name": "Stone Head", "type": "Artifact"}],
+            "card_requests": ["Throne of Glass — a relic"],
         }
         specs = build_reserved_slots(theme)
-        # Structured anchor wins; prose duplicate dropped.
         assert len(specs) == 1
-        assert specs[0].rarity == "rare"
+        assert specs[0].name == "Throne of Glass"
 
     def test_empty_theme_returns_empty(self):
         assert build_reserved_slots({}) == []
 
     def test_tolerates_malformed_entries(self):
-        theme = {
-            "legendary_characters": ["not a dict", {"no_name": True}],
-            "card_requests": ["", "   "],
-        }
+        theme = {"card_requests": ["", "   "]}
         assert build_reserved_slots(theme) == []
 
 

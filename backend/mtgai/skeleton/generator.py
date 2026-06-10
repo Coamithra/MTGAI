@@ -224,7 +224,7 @@ class SkeletonSlot(BaseModel):
     notes: str = ""
     color_pair: str | None = None  # for multicolor slots
     # A requested card pinned to this slot ("<name> — <description>"), set by
-    # the reserved-slot pass from theme.json card_requests / legendary anchors.
+    # the reserved-slot pass from theme.json card_requests.
     reserved_card: str | None = None
     # The color pair whose draft archetype this slot is the signpost uncommon
     # for (one multicolor uncommon per pair, set by the default-matrix pass).
@@ -315,9 +315,8 @@ def render_slot_string(slot: dict) -> str:
 class ReservedSlotSpec(BaseModel):
     """A card the set should contain, mapped onto a skeleton slot.
 
-    Built from ``theme.json`` (``card_requests`` prose + structured
-    ``legendary_characters`` / ``notable_cards`` anchors). All constraint
-    fields are optional — a name-only spec still gets reserved, taking the
+    Built from ``theme.json`` ``card_requests`` prose. All constraint fields
+    are optional — a name-only spec still gets reserved, taking the
     highest-rarity open slot. ``colors`` uses single-letter codes (``["U", "B"]``).
     """
 
@@ -1137,33 +1136,6 @@ _RARITY_RANK: dict[str, int] = {"common": 0, "uncommon": 1, "rare": 2, "mythic":
 # a creature slot would emit a self-contradictory card-gen prompt.
 _HARD_MATCH_TYPES: set[str] = {SlotCardType.LAND, SlotCardType.PLANESWALKER}
 
-# Scanned in order: the first keyword found in a type line wins, so
-# "Artifact Creature" maps to creature and "Legendary Artifact — Vehicle"
-# to artifact.
-_TYPE_LINE_KEYWORDS: list[tuple[str, str]] = [
-    ("planeswalker", SlotCardType.PLANESWALKER),
-    ("creature", SlotCardType.CREATURE),
-    ("instant", SlotCardType.INSTANT),
-    ("sorcery", SlotCardType.SORCERY),
-    ("artifact", SlotCardType.ARTIFACT),
-    ("enchantment", SlotCardType.ENCHANTMENT),
-    ("land", SlotCardType.LAND),
-]
-
-
-def _card_type_from_type_line(type_line: str | None) -> str | None:
-    """Derive a SlotCardType from a full type line (e.g. 'Legendary Creature — X')."""
-    tl = (type_line or "").lower()
-    for keyword, card_type in _TYPE_LINE_KEYWORDS:
-        if keyword in tl:
-            return card_type
-    return None
-
-
-def _normalize_rarity(value: object) -> str | None:
-    rarity = value.strip().lower() if isinstance(value, str) else ""
-    return rarity if rarity in _RARITY_RANK else None
-
 
 def _normalize_pair(colors: list[str]) -> str:
     """Map two color codes to their canonical COLOR_PAIRS ordering."""
@@ -1299,23 +1271,21 @@ def build_reserved_slots(theme: dict) -> list[ReservedSlotSpec]:
     ``reserved_slots`` parameter + ``_apply_reservations``) for potential reuse
     and still covered by tests.
 
-    Sources, in priority order (first occurrence of a name wins):
-      * ``legendary_characters`` / ``notable_cards`` — structured anchors with
-        colors, rarity, and a type line → fully-constrained specs.
-      * ``card_requests`` — prose ('Name — description') → name-only specs.
+    Source: ``card_requests`` — the prose ('Name — description') requests are
+    the single source of cards that must exist. Each becomes a name-only spec
+    (no color/rarity/type constraint), placed onto a matching ordinary slot.
+    World entities described in the setting prose's ``# Notable Characters`` /
+    ``# Landmarks`` / ``# Factions`` sections are NOT reserved here — they're an
+    art-direction concern (consistent painting), handled by the ``visual_refs``
+    stage; a card only exists when something requests it.
 
-    Tolerant of missing keys and either provenance shape; deduped by name.
+    Tolerant of a missing ``card_requests`` key and either provenance shape;
+    deduped by name.
     """
     specs: list[ReservedSlotSpec] = []
     seen: set[str] = set()
 
-    def _add(
-        name: object,
-        colors: object,
-        rarity: str | None,
-        card_type: str | None,
-        description: object,
-    ) -> None:
+    def _add(name: object, description: object) -> None:
         clean_name = name.strip() if isinstance(name, str) else ""
         if not clean_name or clean_name.casefold() in seen:
             return
@@ -1323,36 +1293,16 @@ def build_reserved_slots(theme: dict) -> list[ReservedSlotSpec]:
         specs.append(
             ReservedSlotSpec(
                 name=clean_name,
-                colors=[c for c in colors if isinstance(c, str)]
-                if isinstance(colors, list)
-                else [],
-                rarity=rarity,
-                card_type=card_type,
+                colors=[],
+                rarity=None,
+                card_type=None,
                 description=description.strip() if isinstance(description, str) else "",
             )
         )
 
-    for entry in theme.get("legendary_characters") or []:
-        if isinstance(entry, dict):
-            _add(
-                entry.get("name"),
-                entry.get("colors"),
-                _normalize_rarity(entry.get("rarity")),
-                _card_type_from_type_line(entry.get("type")),
-                entry.get("role"),
-            )
-    for entry in theme.get("notable_cards") or []:
-        if isinstance(entry, dict):
-            _add(
-                entry.get("name"),
-                entry.get("colors"),
-                _normalize_rarity(entry.get("rarity")),
-                _card_type_from_type_line(entry.get("type")),
-                entry.get("notes"),
-            )
     for text in _normalize_request_items(theme.get("card_requests")):
         name, desc = _split_request(text)
-        _add(name, [], None, None, desc)
+        _add(name, desc)
 
     return specs
 
