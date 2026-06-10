@@ -20,6 +20,7 @@ You already know the evergreen keywords, common keyword actions, and standard ru
 
 - **Self-reference**: always use `~` for the card's own name. Write "When ~ enters", not "When this creature enters" or "When [Card Name] enters".
 - **Mana cost format**: generic first, then WUBRG order. `{2}{W}{U}` is correct, `{W}{2}{U}` is wrong. `X` comes first: `{X}{R}{R}`.
+- **Hybrid mana** (evergreen): use `{G/U}`-style pips for a card that should be castable by either of two colors — fitting for signpost uncommons in two-color archetypes and flexible commons. Use it OCCASIONALLY (a small minority of cards, as real sets do). Twobrid `{2/W}` and Phyrexian `{W/P}` exist but are special — not for general use unless the set calls for them.
 - **Oracle newlines**: separate multiple abilities with a real newline character, not the literal `\n`.
 - **Keyword ordering**: keyword abilities (single-word or short keyword phrases like Flying, Trample, Lifelink, Ward {2}) go at the **top** of the textbox, above any complex triggered / activated / static abilities. Put them on the first line(s) as a comma-separated list, then the complex abilities below. Never sandwich a keyword between or below complex abilities.
 
@@ -125,7 +126,7 @@ At ~1,800 tokens, this system prompt fits comfortably within the ~2,000 token bu
 
 - **No set-specific mechanics**: The system prompt is generic. Set mechanics (e.g., "Delirium", "Convoke") will be injected via the user prompt's set context section. The system prompt only covers evergreen keywords.
 
-- **No multicolor/hybrid/phyrexian mana**: v1 keeps it simple with standard mana only. Hybrid mana ({W/U}), Phyrexian mana ({W/P}), and other special costs can be added in v2 if the set design calls for them.
+- **Multicolor/phyrexian mana**: hybrid mana ({W/U}) is now covered in the Mana cost format rule (added 2026-06-10 — it's evergreen and was previously absent). Phyrexian mana ({W/P}) and other special costs are flagged as special-case only.
 
 - **No planeswalker-specific guidance**: The NWO section mentions planeswalkers at mythic, but the prompt lacks specific guidance on loyalty ability design (starting loyalty, +/- ability balance, ultimate design). Add in v2 if planeswalker generation quality is poor.
 
