@@ -2,7 +2,14 @@
 
 Verifies internal consistency between mana_cost, cmc, colors, color_identity,
 and mana_cost_parsed fields. Catches format errors, CMC miscalculations,
-color mismatches, and WUBRG ordering violations.
+color mismatches, and canonical colored-symbol ordering violations.
+
+Colored mana symbols in ``mana_cost`` are ordered by the canonical MTG colour
+wheel: generic/X/colorless first, then the colored pips along the *shortest
+contiguous arc* of WUBRG (the "shortest way around" rule — so ``{G}{W}`` not
+``{W}{G}`` for the green-white pair). See :func:`canonical_color_sequence`. This
+is distinct from the ``colors`` / ``color_identity`` *list* fields, which match
+Scryfall's flat WUBRG sort regardless of how the cost reads.
 """
 
 from __future__ import annotations
@@ -100,15 +107,100 @@ def _parse_mana_cost(mana_cost: str) -> tuple[float, set[str], int, list[str]]:
     return cmc, colors, x_count, color_sequence
 
 
+# The WUBRG colour wheel as a cycle. Real Magic prints a multicolour cost's
+# colored pips along the *shortest contiguous arc* of this wheel (the "shortest
+# way around" rule), NOT in flat WUBRG order — so e.g. the green-white pair is
+# {G}{W} (the G->W arc), not {W}{G}, and the red-white pair is {R}{W}, not {W}{R}.
+_WHEEL = ("W", "U", "B", "R", "G")
+
+
+def canonical_color_sequence(colors: set[str]) -> list[str]:
+    """Return the colors in canonical MTG print order for that *combination*.
+
+    Real cards order colored mana symbols along the **shortest contiguous arc**
+    of the WUBRG colour wheel (the "shortest way around" rule), not in flat WUBRG
+    order. This reproduces every printed ordering verified against Scryfall:
+
+    * **Mono / colorless** — the single color (trivial).
+    * **Two colors** — the wheel pairs ``WU UB BR RG GW`` (allied, adjacent) and
+      ``WB UR BG RW GU`` (enemy); the three wheel-wrap pairs ``GW``/``RW``/``GU``
+      are exactly where a naive WUBRG sort disagreed (it produced ``WG``/``WR``/
+      ``UG``) — the bug this fixes.
+    * **Three colors** — the ten shards/wedges, e.g. Bant ``GWU``, Esper ``WUB``,
+      Grixis ``UBR``, Abzan ``WBG``, Mardu ``RWB``, Sultai ``BGU``.
+    * **Four colors** — the contiguous-arc-minus-one-gap order, e.g. Atraxa
+      ``GWUB``, Saskia ``BRGW``, Yidris ``UBRG``, Kynaios ``RGWU``.
+    * **Five colors** — always ``WUBRG``.
+
+    The algorithm: among the five cyclic rotations of the wheel, pick the one
+    whose first present color begins the **shortest** window covering every
+    present color (i.e. the *largest* gap between consecutive present colors is
+    placed after the last one), then read the present colors off in that order.
+    The three-color **wedges** are the one exception — their three colors sit
+    equidistant on the wheel (no unique largest gap), so there's no single
+    shortest arc; they instead follow the Khans convention of the center color
+    (the one whose two enemies are the other two) in the *middle*, flanked by the
+    pair in wheel order: Abzan ``WBG``, Jeskai ``URW``, Sultai ``BGU``,
+    Mardu ``RWB``, Temur ``GUR``.
+    """
+    present = [c for c in _WHEEL if c in colors]
+    n = len(_WHEEL)
+    # 0/1 colour is trivial; 5 colours is always flat WUBRG (no gaps to weigh).
+    if len(present) <= 1 or len(present) == n:
+        return present
+
+    present_idx = sorted(_WHEEL.index(c) for c in present)
+    gaps = [(present_idx[i] - present_idx[i - 1]) % n for i in range(len(present_idx))]
+    max_gap = max(gaps)
+
+    # A unique largest gap defines a single shortest arc (2-/4-colour and the
+    # three-colour shards): start right after that gap and read clockwise.
+    if gaps.count(max_gap) == 1:
+        start = present_idx[gaps.index(max_gap)]
+        rotation = [_WHEEL[(start + k) % n] for k in range(n)]
+        return [c for c in rotation if c in colors]
+
+    # No unique largest gap -> a three-colour wedge (three equidistant colours,
+    # each an enemy of the others, spaced by 2 on the wheel). It reads as an arc
+    # of +2 ("enemy") steps: the center color sits in the middle, flanked by the
+    # pair, e.g. Jeskai U->R->W (each step +2 mod 5). Start at the color whose
+    # -2 predecessor is absent (the head of that chain).
+    start = next(i for i in present_idx if _WHEEL[(i - 2) % n] not in colors)
+    chain = [_WHEEL[(start + 2 * k) % n] for k in range(len(present_idx))]
+    return chain
+
+
+def cost_has_compound_symbol(symbols: list[str]) -> bool:
+    """True if any parsed symbol is a hybrid/phyrexian/twobrid (contains ``/``).
+
+    The canonical reorder is restricted to *simple* costs (generic/X/C + plain
+    WUBRG pips). A cost carrying a compound symbol like ``{G/U}`` / ``{G/P}`` /
+    ``{2/W}`` is left untouched — reordering a hybrid pip risks changing the
+    perceived semantics, and our generator effectively never emits them.
+    """
+    return any("/" in s for s in symbols)
+
+
 def _canonical_symbol_order(symbols: list[str]) -> list[str]:
     """Reorder mana symbols into canonical MTG order.
 
     Canonical order is ``{X}`` first, then generic/numeric, then colorless
-    ``{C}``, then the colored symbols in WUBRG order (a hybrid is ranked by its
-    first colored half). The sort is stable, so repeated or same-rank symbols
-    keep their relative order. This is the single source of truth shared by the
-    ordering validator and its fixer, so a fixed cost always passes the check.
+    ``{C}``, then the colored symbols in the canonical sequence for the cost's
+    color *combination* (the shortest-cyclic-arc wheel rule — see
+    :func:`canonical_color_sequence`), e.g. ``{G}{W}`` (not ``{W}{G}``) for the
+    green-white pair. The sort is stable, so repeated symbols keep their relative
+    order. This is the single source of truth shared by the ordering validator
+    and its fixer, so a fixed cost always passes the check.
+
+    A cost containing a compound symbol (hybrid/phyrexian/twobrid) is returned
+    **unchanged** (conservative skip — see :func:`cost_has_compound_symbol`); the
+    check and fixer also bail on such costs so a hybrid pip is never reordered.
     """
+    if cost_has_compound_symbol(symbols):
+        return list(symbols)
+
+    colored = {s for s in symbols if s in COLOR_SYMBOLS}
+    color_rank = {c: i for i, c in enumerate(canonical_color_sequence(colored))}
 
     def _key(sym: str) -> tuple[int, int]:
         if sym == "X":
@@ -117,11 +209,7 @@ def _canonical_symbol_order(symbols: list[str]) -> list[str]:
             return (1, 0)
         if sym == "C":
             return (2, 0)
-        # Hybrid is ranked by its colored half ({2/W}, {W/U}, {W/P} all sort as
-        # white); a plain colored symbol by itself.
-        parts = sym.split("/")
-        colored_half = next((p for p in parts if p in WUBRG_ORDER), parts[0])
-        return (3, WUBRG_ORDER.get(colored_half, 99))
+        return (3, color_rank.get(sym, 99))
 
     return sorted(symbols, key=_key)
 
@@ -250,24 +338,29 @@ def validate_mana_consistency(card: Card) -> list[ValidationError]:
 
     # ------------------------------------------------------------------
     # 6. Canonical symbol ordering — AUTO
-    #    Generic/X must precede colored, and colored must be in WUBRG order.
+    #    Generic/X must precede colored, and colored must follow the canonical
+    #    colour-wheel sequence for the cost's color combination (the
+    #    shortest-cyclic-arc rule, NOT flat WUBRG — see canonical_color_sequence).
     #    The old check only ordered the colored symbols among themselves, so a
     #    misplaced generic like {B}{G}{1} (canonical {1}{B}{G}) slipped through.
     # ------------------------------------------------------------------
     # `stripped` non-empty means the cost has unparseable symbols (e.g. a
     # {2/W} twobrid the pattern can't match). Those are owned by the
     # invalid_format check above; skip the order check so we never emit a flag
-    # whose fixer would have to rebuild from a lossy `findall`.
+    # whose fixer would have to rebuild from a lossy `findall`. A compound
+    # (hybrid/phyrexian/twobrid) symbol is left untouched too (conservative —
+    # reordering a hybrid pip risks changing perceived semantics).
     cost_symbols = MANA_SYMBOL_PATTERN.findall(card.mana_cost)
+    skip_order = stripped or cost_has_compound_symbol(cost_symbols)
     canonical_symbols = _canonical_symbol_order(cost_symbols)
-    if not stripped and cost_symbols != canonical_symbols:
+    if not skip_order and cost_symbols != canonical_symbols:
         got = "".join(f"{{{s}}}" for s in cost_symbols)
         want = "".join(f"{{{s}}}" for s in canonical_symbols)
         errors.append(
             _auto(
                 "mana_cost",
                 f"Mana symbols are not in canonical order (generic/X before colored, "
-                f"colored in WUBRG): got {got}, expected {want}",
+                f"colored in colour-wheel order): got {got}, expected {want}",
                 f"Reorder to {want}",
                 error_code="mana.wubrg_order",
             )
@@ -493,7 +586,14 @@ def fix_color_identity_from_cost(card: Card, error: ValidationError) -> Card:
 
 
 def fix_wubrg_order(card: Card, error: ValidationError) -> Card:
-    """Reorder mana_cost symbols into canonical order (generic/X first, colored WUBRG)."""
+    """Reorder mana_cost symbols into canonical order.
+
+    Generic/X/C first, then the colored pips in the canonical colour-wheel
+    sequence for the cost's color combination (the shortest-cyclic-arc rule, e.g.
+    ``{G}{W}`` not ``{W}{G}`` — see :func:`canonical_color_sequence`). A cost with
+    a compound (hybrid/phyrexian/twobrid) symbol is left untouched (conservative
+    skip; the check never flags it either).
+    """
     if not card.mana_cost:
         return card
 
@@ -503,7 +603,7 @@ def fix_wubrg_order(card: Card, error: ValidationError) -> Card:
         return card
 
     symbols = MANA_SYMBOL_PATTERN.findall(card.mana_cost)
-    if not symbols:
+    if not symbols or cost_has_compound_symbol(symbols):
         return card
 
     new_cost = "".join(f"{{{s}}}" for s in _canonical_symbol_order(symbols))

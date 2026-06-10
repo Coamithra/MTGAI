@@ -289,15 +289,30 @@ class TestManaConsistency:
         assert any("B" in e.message for e in errors)
 
     def test_wubrg_ordering_auto(self):
+        # {W}{G} is a wheel-wrap pair: canonical is {G}{W} (the G->W arc), so a
+        # naive WUBRG sort gets it wrong. The check must flag this.
         card = _make_card(
-            mana_cost="{R}{W}",
+            mana_cost="{W}{G}",
             cmc=2.0,
-            colors=[Color.WHITE, Color.RED],
-            color_identity=[Color.WHITE, Color.RED],
+            colors=[Color.WHITE, Color.GREEN],
+            color_identity=[Color.WHITE, Color.GREEN],
         )
         errors = _errors_by_validator(validate_card(card), "mana")
         auto = [e for e in errors if e.severity == ValidationSeverity.AUTO]
-        assert any("WUBRG" in e.message for e in auto)
+        assert any(e.error_code == "mana.wubrg_order" for e in auto)
+        assert any("{G}{W}" in (e.suggestion or "") for e in auto)
+
+    def test_canonical_wheel_wrap_pairs_not_flagged(self):
+        """The three wheel-wrap pairs read canonically ({R}{W}, {G}{W}, {G}{U})
+        must NOT be flagged — naive WUBRG would mangle them to {W}{R}/{W}{G}/{U}{G}."""
+        for cost, cols in (
+            ("{R}{W}", [Color.RED, Color.WHITE]),
+            ("{G}{W}", [Color.GREEN, Color.WHITE]),
+            ("{G}{U}", [Color.GREEN, Color.BLUE]),
+        ):
+            card = _make_card(mana_cost=cost, cmc=2.0, colors=cols, color_identity=cols)
+            errors = _errors_by_validator(validate_card(card), "mana")
+            assert not any(e.error_code == "mana.wubrg_order" for e in errors), cost
 
     def test_generic_after_colored_auto(self):
         """A misplaced generic ({B}{G}{1}) is flagged — generic must precede colored."""
@@ -2221,16 +2236,61 @@ class TestAutoFix:
         assert result.card.mana_cost == "{1}{W}{W}"
 
     def test_auto_fix_wubrg_order(self):
-        """Mana symbols get reordered to WUBRG."""
+        """A non-canonical cost gets reordered. {U}{W} -> {W}{U} (WU is an allied
+        pair; its canonical order matches a naive WUBRG sort here)."""
         card = _make_card(
-            mana_cost="{R}{W}",
+            mana_cost="{U}{W}",
             cmc=2.0,
-            colors=[Color.WHITE, Color.RED],
-            color_identity=[Color.WHITE, Color.RED],
+            colors=[Color.WHITE, Color.BLUE],
+            color_identity=[Color.WHITE, Color.BLUE],
         )
         errors = validate_card(card)
         result = auto_fix_card(card, errors)
-        assert result.card.mana_cost == "{W}{R}"
+        assert result.card.mana_cost == "{W}{U}"
+
+    def test_auto_fix_wheel_wrap_pairs(self):
+        """The three wheel-wrap pairs canonicalize to their arc order, NOT WUBRG:
+        {W}{G}{G} -> {G}{G}{W}, {U}{G} -> {G}{U}, {W}{R} -> {R}{W}."""
+        from mtgai.validation.mana import fix_wubrg_order
+
+        for before, after, cols in (
+            ("{W}{G}{G}", "{G}{G}{W}", [Color.WHITE, Color.GREEN]),
+            ("{U}{G}", "{G}{U}", [Color.BLUE, Color.GREEN]),
+            ("{W}{R}", "{R}{W}", [Color.WHITE, Color.RED]),
+            ("{1}{W}{G}", "{1}{G}{W}", [Color.WHITE, Color.GREEN]),
+        ):
+            card = _make_card(mana_cost=before, colors=cols, color_identity=cols)
+            fixed = fix_wubrg_order(card, _DUMMY_ERR)
+            assert fixed.mana_cost == after, before
+
+    def test_auto_fix_shard_and_wedge(self):
+        """Three-colour costs canonicalize to their shard/wedge order:
+        a shard arc (Bant {G}{W}{U}) and a wedge (Abzan {W}{B}{G})."""
+        from mtgai.validation.mana import fix_wubrg_order
+
+        bant = [Color.GREEN, Color.WHITE, Color.BLUE]
+        card = _make_card(mana_cost="{W}{U}{G}", colors=bant, color_identity=bant)
+        assert fix_wubrg_order(card, _DUMMY_ERR).mana_cost == "{G}{W}{U}"  # Bant
+
+        abzan = [Color.WHITE, Color.BLACK, Color.GREEN]
+        card = _make_card(mana_cost="{G}{B}{W}", colors=abzan, color_identity=abzan)
+        assert fix_wubrg_order(card, _DUMMY_ERR).mana_cost == "{W}{B}{G}"  # Abzan
+
+    def test_canonical_order_idempotent(self):
+        """Canonicalizing an already-canonical cost is a no-op (idempotent)."""
+        from mtgai.validation.mana import fix_wubrg_order
+
+        for cost, cols in (
+            ("{G}{W}", [Color.GREEN, Color.WHITE]),  # wheel-wrap pair
+            ("{G}{W}{U}", [Color.GREEN, Color.WHITE, Color.BLUE]),  # Bant shard
+            ("{W}{B}{G}", [Color.WHITE, Color.BLACK, Color.GREEN]),  # Abzan wedge
+            ("{X}{1}{C}{W}", [Color.WHITE]),  # generic/X/colorless preserved
+        ):
+            card = _make_card(mana_cost=cost, colors=cols, color_identity=cols)
+            once = fix_wubrg_order(card, _DUMMY_ERR)
+            twice = fix_wubrg_order(once, _DUMMY_ERR)
+            assert once.mana_cost == cost, cost
+            assert twice.mana_cost == cost, cost
 
     def test_auto_fix_generic_before_colored(self):
         """Generic/numeric symbols get reordered before colored: {B}{G}{1} -> {1}{B}{G}."""
@@ -2256,20 +2316,23 @@ class TestAutoFix:
         result = auto_fix_card(card, errors)
         assert result.card.mana_cost == "{X}{1}{C}{W}"
 
-    def test_auto_fix_reorders_twobrid_without_dropping(self):
-        """A {2/W} twobrid is a recognized symbol: the ordering fixer reorders the
-        cost into canonical order ({1}{2/W}{R}) without dropping the hybrid."""
+    def test_ordering_skips_compound_symbols(self):
+        """A cost containing a compound symbol (hybrid/phyrexian/twobrid) is left
+        UNTOUCHED — reordering a hybrid pip risks changing its perceived
+        semantics, so the check never flags it and the fixer is a no-op."""
+        from mtgai.validation.mana import fix_wubrg_order
+
         card = _make_card(
             mana_cost="{R}{2/W}{1}",
             cmc=4.0,  # 1 + (2/W twobrid = 2) + R = 4
             colors=[Color.RED, Color.WHITE],
             color_identity=[Color.RED, Color.WHITE],
         )
-        from mtgai.validation.mana import fix_wubrg_order
-
-        fixed = fix_wubrg_order(card, _DUMMY_ERR)
-        # Generic first, then colored in WUBRG order (twobrid ranks as white).
-        assert fixed.mana_cost == "{1}{2/W}{R}"  # reordered, hybrid intact
+        # The fixer leaves a compound cost verbatim.
+        assert fix_wubrg_order(card, _DUMMY_ERR).mana_cost == "{R}{2/W}{1}"
+        # And the check never raises a wubrg_order flag on it.
+        errors = _errors_by_validator(validate_card(card), "mana")
+        assert not any(e.error_code == "mana.wubrg_order" for e in errors)
 
     def test_twobrid_is_valid_no_format_flag(self):
         """A {2/W} twobrid is a legal symbol — it must NOT trip invalid_format,
@@ -2480,18 +2543,18 @@ class TestAutoFix:
         """Multiple AUTO fixes compose correctly on one card."""
         card = _make_card(
             name="Flame Serpent",
-            mana_cost="{R}{W}",
+            mana_cost="{U}{W}",
             cmc=3.0,  # wrong — should be 2
-            colors=[Color.WHITE, Color.RED],
-            color_identity=[Color.WHITE, Color.RED],
+            colors=[Color.WHITE, Color.BLUE],
+            color_identity=[Color.WHITE, Color.BLUE],
             oracle_text="When Flame Serpent enters the battlefield, draw a card.",
         )
         errors = validate_card(card)
         result = auto_fix_card(card, errors)
         # CMC fixed
         assert result.card.cmc == 2.0
-        # WUBRG fixed
-        assert result.card.mana_cost == "{W}{R}"
+        # Canonical colour-wheel order fixed ({U}{W} -> {W}{U})
+        assert result.card.mana_cost == "{W}{U}"
         # Card name replaced
         assert "Flame Serpent" not in result.card.oracle_text
         assert "~" in result.card.oracle_text
