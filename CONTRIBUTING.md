@@ -29,7 +29,7 @@ git checkout master && git pull origin master   # fast-forward local master to t
 # Tracker: fix/some-bug
 
 ## Phase 1: Pick Up the Card
-- [ ] Claim the top card — two-phase handshake FIRST (move to Doing → claim comment → wait 10s → earliest comment wins), before anything else
+- [ ] Claim the top card with `trello grab` (atomic; the two-phase handshake is the fallback), before anything else
 - [ ] Pull latest master
 - [ ] Read the card (description, comments, linked plan)
 - [ ] Create worktree and branch
@@ -63,6 +63,14 @@ All work happens in an isolated **git worktree** under `.trees/` (gitignored). T
 ---
 
 ## Phase 1: Pick Up the Card
+
+> **Fastest path: the atomic `grab` command.** When you are told to "pick up the top card/ticket", you do not need to run the two-phase handshake below by hand. `trello grab` does the whole claim in one command:
+>
+> ```
+> trello --board 69f86a83 grab --from "To Do" --to "Doing"
+> ```
+>
+> It pops the top card of To Do, moves it to Doing, and prints the card it got you (it exits 1 when To Do is empty). Fire it from several agents at once and no two will get the same card. On the remote Trello backend `grab` runs the same claim-comment handshake automatically (a brief ~10-30s wait), so it is a drop-in for the steps below. The manual two-phase handshake below is exactly what `grab` does under the hood, so reach for it only when you are claiming a card by hand.
 
 > **Claim the card FIRST — and confirm the claim before you trust it.** When several agents are launched in tandem and each is told to "pick up the top card of To Do", they all read the board, go off and do some work, and only *then* move the card — so they all grab the *same* card. Moving a card to Doing is a fast claim, but "read the board" and "move the card" can't be truly atomic, so two agents can *both* land on the same card within the same second. The fix is a two-phase claim: move it to Doing immediately (the fast grab), then post a claim comment and wait — the **earliest claim comment wins**, deterministically, because comments carry server timestamps. Do the move *before* reading the card, pulling master, or any other step; keep the read→move gap to those two back-to-back commands with **nothing in between**. If the board shows the top card is already in Doing (another agent beat you to it), claim the next To Do card down instead.
 
