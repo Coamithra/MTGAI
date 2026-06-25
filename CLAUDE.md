@@ -6,7 +6,17 @@
 - **Board**: [MTGAI](https://trello.com/b/Am3RvaZM) — id `69f86a83`
 - **Lists**: `To Do` → `Doing` → `Done`. **Labels**: `bug` (red), `feature` (green), `refactor` (blue), `design` (purple), `infra` (orange), `docs` (yellow)
 - **CLI**: `trello --board 69f86a83 <command>` (e.g. `card move`, `comment add`, `card add`)
-- **Picking up a card?** Read `CONTRIBUTING.md` first — it's the runbook (tracker doc → worktree → research → design → implement → verify → review → ship).
+- **Picking up a card?** Follow `~/.claude/CONTRIBUTING.md` plus the **Contributing workflow** section below — it's the runbook (tracker doc → worktree → research → design → implement → verify → review → ship).
+
+## Contributing workflow
+
+Card -> worktree -> PR runbook: follow `~/.claude/CONTRIBUTING.md` (the global generic runbook). MTGAI specifics:
+
+- **Board:** MTGAI (https://trello.com/b/Am3RvaZM), id `69f86a83`, remote `trello` backend. Lists: To Do / Doing / Done. Atomic pickup: `trello --board 69f86a83 grab --from "To Do" --to "Doing"`.
+- **Default branch:** `master`. **GitHub:** solo public repo (unprotected `master` -> PR + self-merge, no approval needed).
+- **Worktrees:** `.trees/<branch>` (branch-named, gitignored). A fresh worktree lacks the gitignored files - recreate as needed: `.env`, `backend/.venv/`, `output/`, `backend/.llmfacade/`. All backend commands run from `backend/`.
+- **Verification gate:** from `backend/`: `ruff check .` + `ruff format .` clean; smoke `python -c "import mtgai"`; `pytest` (the validation tests in `tests/test_validation/` are the most-protected category - never let them regress). Manual smoke for pipeline / LLM / art changes via the dashboard (`python -m mtgai.review serve --open`). Local-model stages run on llamacpp; a hosted/live model call or a GPU art render only with the user's explicit go-ahead.
+- The `/qa-bot` skill farms each fix to a subagent that runs this contributing runbook end-to-end (full auto self-merge) in its own worktree.
 
 ## Project Structure
 - Backend: `backend/mtgai/`. Tests: `backend/tests/` (mirrors source). Research: `research/`. Learnings: `learnings/`. Plans: `plans/`. Task tracking lives on Trello (see above) — `plans/TRACKER.md` is deprecated (history in git).
@@ -22,7 +32,7 @@
   - `POST /api/debug/quick-project` — create + activate a QA project **server-side** (no picker), applying the **`qa` preset** (every LLM stage → `gemma4-26b-iq2m`, thinking `disabled`; in `model_settings.PRESETS`) + small `set_size` + `use_prefab_{cards,mechanics}` on.
   - `POST /api/debug/seed-stage {target_stage, source_dir?}` — clone a finished "golden" project (auto-detected, or `MTGAI_QA_GOLDEN`) into `output/qa-runs/<name>/`, rewrite `pipeline-state.json` so stages ≤ target are COMPLETED and the rest reset PENDING, and land the wizard on that tab with real upstream artifacts present. The "skip to a state" debug jump.
   - `POST /api/debug/open-path {path}` — open a `.mtg` from a server path (no picker); `POST /api/debug/save-mtg` — write the active project's `.mtg` to its asset folder (the Save-button bypass `wizard_project.js` routes to when `window.MTGAI_DEBUG`).
-- **The `/qa-bot` skill** (`.claude/skills/qa-bot/`) is the methodology: one serial QA orchestrator drives the app via claude-in-chrome (single live app + AI mutex ⇒ serial driving), files each confirmed bug to Trello (`bug` label), and farms the fix to a subagent that runs `CONTRIBUTING.md` end-to-end (full auto self-merge) in its own worktree (code fixes parallelize even though driving doesn't); it restarts the server + hands off to a fresh orchestrator once enough fixes have merged.
+- **The `/qa-bot` skill** (`.claude/skills/qa-bot/`) is the methodology: one serial QA orchestrator drives the app via claude-in-chrome (single live app + AI mutex ⇒ serial driving), files each confirmed bug to Trello (`bug` label), and farms the fix to a subagent that runs the contributing runbook (`~/.claude/CONTRIBUTING.md`) end-to-end (full auto self-merge) in its own worktree (code fixes parallelize even though driving doesn't); it restarts the server + hands off to a fresh orchestrator once enough fixes have merged.
 
 ## Code Style
 - Pydantic v2 for all data structures. StrEnum for enumerations.
@@ -154,4 +164,4 @@ Standalone pages **/theme**, **/review**, **/progress**, **/booster** were remov
 ## Git
 - Card JSON is version-controlled. Art and rendered images are gitignored.
 - Full ignore patterns in `.gitignore` at repo root.
-- **Shipping a change**: PR + auto self-merge is the default — see `CONTRIBUTING.md` (Phase 6 "Review & Ship" + the "Quick ship" note at the top). No approval needed.
+- **Shipping a change**: PR + auto self-merge is the default — see `~/.claude/CONTRIBUTING.md` (Phase 6 "Review & Ship" + the "Quick ship" note at the top) and the **Contributing workflow** section above. No approval needed.
